@@ -1,0 +1,1172 @@
+﻿{
+    "strategies":  [
+                       {
+                           "id":  "graham-defensive",
+                           "name":  "Graham Defensive Investor Criteria",
+                           "category":  "value",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "Benjamin Graham\u0027s mechanical 7-test checklist for the passive (\u0027defensive\u0027) investor: adequate size, strong financials, earnings stability, dividend record, growth, moderate P/E (\u003c=15) and P/B (\u003c=1.5, or P/E*P/B\u003c=22.5).",
+                           "rules":  "Score 1 point each: (1) size market_cap\u003e=$2B; (2) current_ratio\u003e=2.0 AND debt_to_equity\u003c=1.0; (3) eps\u003e0 (proxy for 10yr stability); (4) dividend\u003e0; (5) revenue_growth\u003e0 (proxy for 33% 10yr EPS growth); (6) price/eps\u003c=15; (7) price/bvps\u003c=1.5 OR P/E*P/B\u003c=22.5. Buy when most pass; the valuation gate (tests 6-7) is binding.",
+                           "parameters":  "PE_max=15; PB_max=1.5; PE_x_PB_max=22.5; current_ratio_min=2.0; debt_to_equity_max=1.0; require dividend\u003e0,eps\u003e0; size proxy market_cap\u003e=2e9",
+                           "computeSignal":  "PE=price/eps, PB=price/bvps. Count passed tests T/7. Valuation core V=clip(100*(22.5-PE*PB)/22.5,-100,100); if eps\u003c=0 set V=-80. Quality multiplier Q=T/7. score=clip(V*(0.5+0.5*Q),-100,100). confidence=clip(0.4+0.5*(T/7),0,0.6); drop to 0.3 if eps\u003c=0 or bvps\u003c=0 (10yr history proxied).",
+                           "computeProjection":  "Margin-of-safety (22.5-PE*PB) maps to a modest positive expected-return tilt; passing the strength tests (current_ratio\u003e=2, low D/E) lowers the idiosyncratic-risk estimate.",
+                           "sources":  [
+                                           "Benjamin Graham, \u0027The Intelligent Investor\u0027 (1973 rev.), Ch. 14",
+                                           "AAII Graham Defensive screens â€” https://www.aaii.com/stock-screens"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "graham-number",
+                           "name":  "Graham Number (Fair-Value Ceiling)",
+                           "category":  "value",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Single fair-value formula from Graham\u0027s P/E\u003c=15 and P/B\u003c=1.5 limits: GN = sqrt(22.5 * EPS * BVPS), the maximum a defensive investor should pay for a profitable, asset-backed firm.",
+                           "rules":  "GN=sqrt(22.5*eps*bvps), valid only when eps\u003e0 and bvps\u003e0. Buy when price\u003cGN (discount); the larger the discount the stronger. Avoid when price\u003eGN. Best for mature, asset-heavy, profitable firms; unreliable for asset-light/high-growth.",
+                           "parameters":  "constant=22.5; require eps\u003e0,bvps\u003e0; strong-buy discount\u003e=33%",
+                           "computeSignal":  "If eps\u003c=0 or bvps\u003c=0 -\u003e score 0, confidence 0.1. Else GN=sqrt(22.5*eps*bvps); D=(GN-price)/GN; score=clip(100*D,-100,100). confidence=0.55 base, up to 0.7 when eps and bvps both sizeable, down to 0.35 for asset-light sectors. Crypto/ETF N/A.",
+                           "computeProjection":  "Discount-to-GN is a margin-of-safety proxy: feed magnitude into expected mean-reversion upside toward intrinsic value.",
+                           "sources":  [
+                                           "Benjamin Graham, \u0027The Intelligent Investor\u0027 (1973) â€” 22.5 constant basis",
+                                           "GuruFocus Graham Number â€” https://www.gurufocus.com/term/graham-number"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "net-net-ncav",
+                           "name":  "Graham Net-Net / NCAV (Deep Value)",
+                           "category":  "value",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Graham\u0027s deep-value \u0027cigar-butt\u0027 screen (Security Analysis, 1934): buy a diversified basket trading below two-thirds of Net Current Asset Value (current assets minus total liabilities) â€” liquidation-value investing with built-in margin of safety.",
+                           "rules":  "True NCAV = current assets - total_liabilities. With the snapshot, proxy NCAV_proxy = working_capital - max(0, total_liabilities - working_capital) approximated conservatively as working_capital (flag proxy). NCAV_per_share = NCAV_proxy/shares_out. Net-net buy when price \u003c 0.67*NCAV_per_share. Hold a 20-30 name basket; sell on reaching NCAV or after 1-2 years.",
+                           "parameters":  "threshold=0.67; basket 20-30; require NCAV_proxy\u003e0; hold 1-2yr",
+                           "computeSignal":  "NCAV_per_share=NCAV_proxy/shares_out. R=price/NCAV_per_share (if \u003e0). score=clip(100*(1-R/0.67),-100,100): R\u003c=0.67 strongly positive, R\u003e1 capped negative. If NCAV_proxy\u003c=0 -\u003e score 0, conf 0.15. confidence=0.35 base (current-asset breakdown unavailable), up to 0.5 if working_capital and total_liabilities clean and positive. Crypto/ETF N/A.",
+                           "computeProjection":  "Deep discount to liquidation value implies large mean-reversion upside but elevated distress risk; widen single-name risk and rely on diversification. Tilt scales with (0.67-R).",
+                           "sources":  [
+                                           "Graham \u0026 Dodd, \u0027Security Analysis\u0027 (1934)",
+                                           "Oppenheimer (1986), \u0027Ben Graham\u0027s Net Current Asset Values\u0027, Financial Analysts Journal"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "magic-formula",
+                           "name":  "Greenblatt Magic Formula",
+                           "category":  "quality",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Joel Greenblatt\u0027s combined ranking of cheapness (earnings yield = EBIT/EV) and quality (return on capital = EBIT/capital) from \u0027The Little Book That Beats the Market\u0027 (2005). Buys cheap-and-good businesses; reported 30.8% annualized 1988-2004.",
+                           "rules":  "EV proxy = market_cap + net debt (net debt proxy = debt_to_equity*bvps*shares_out; if thin, EV=market_cap, flag proxy). EY=ebit/EV. ROC proxy = ebit/(working_capital + (total_assets-total_liabilities-working_capital)) i.e. ebit/net invested capital; fallback ebit/(total_assets-total_liabilities). Rank equities by EY and ROC; combined=rankEY+rankROC; buy lowest-combined tertile. Exclude financials/utilities; annual rebalance.",
+                           "parameters":  "rank EY+ROC cross-sectional; buy best tertile; exclude financials/utilities; annual rebalance",
+                           "computeSignal":  "Percentile-rank EY (pEY) and ROC (pROC) across equities. C=0.5*pEY+0.5*pROC. score=clip(200*(C-0.5),-100,100). If ebit\u003c=0 force score\u003c=-60. confidence=0.55, up to 0.7 when EV/ROC use real debt/asset fields, down to 0.4 when EV defaults to market_cap. Crypto/ETF N/A.",
+                           "computeProjection":  "High EBIT/EV maps directly to a forward-return proxy; high ROC indicates quality compounding (lower-risk adjustment).",
+                           "sources":  [
+                                           "Joel Greenblatt, \u0027The Little Book That Beats the Market\u0027 (2005, rev. 2010)",
+                                           "https://www.gurufocus.com/tutorial/article/57"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "acquirers-multiple",
+                           "name":  "Acquirer\u0027s Multiple (EV/EBIT)",
+                           "category":  "value",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Tobias Carlisle\u0027s deep-value metric (\u0027Deep Value\u0027, 2014): rank by the cheapest operating multiple EV/EBIT â€” Greenblatt\u0027s earnings yield without the ROC quality leg. Carlisle found the quality leg can hurt deep-value returns.",
+                           "rules":  "AM=EV/ebit, EV=market_cap+net_debt (net debt proxy=debt_to_equity*bvps*shares_out; fallback EV=market_cap). Lower AM=cheaper. Rank ascending; buy cheapest quintile; require ebit\u003e0; equal-weight; annual rebalance. Pure cheapness, no ROC filter.",
+                           "parameters":  "EV=market_cap+net_debt; rank ascending EV/EBIT; buy cheapest quintile; min market_cap ~1B; require ebit\u003e0; annual rebalance",
+                           "computeSignal":  "EY=ebit/EV (inverse AM). Percentile-rank EY across equities; score=clip(200*(pEY-0.5),-100,100). Absolute fallback: AM\u003c6 -\u003e +60..+100, 6-10 mild +, 10-14 ~0, \u003e14 negative. If ebit\u003c=0 -\u003e -70. confidence=0.6 with real net-debt, 0.45 when EV=market_cap. Crypto/ETF N/A.",
+                           "computeProjection":  "EV/EBIT earnings yield is a clean forward-return proxy; strongest mean-reversion at lowest multiples. No quality offset â€” pair with a distress screen.",
+                           "sources":  [
+                                           "Tobias E. Carlisle, \u0027The Acquirer\u0027s Multiple\u0027 (2014); \u0027Deep Value\u0027 (2014, Wiley)",
+                                           "Carlisle \u0026 Gray, \u0027Quantitative Value\u0027 (2012, Wiley)"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "owner-earnings-yield",
+                           "name":  "Buffett Owner-Earnings Yield",
+                           "category":  "quality",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Warren Buffett\u0027s cash-earnings measure (1986 Berkshire letter): owner earnings = net income + non-cash charges - maintenance capex +/- working-capital change. Buy quality businesses when the owner-earnings yield is attractive vs price and the risk-free rate.",
+                           "rules":  "OE proxy = fcf_per_share (FCF nets capex; standard owner-earnings proxy). OEY=fcf_per_share/price. Attractive when OEY \u003e risk_free + ~3-4% equity premium. Require fcf_per_share\u003e0.",
+                           "parameters":  "OE proxy=fcf_per_share; OEY=fcf_per_share/price; attractive when OEY\u003erf+0.03; require fcf\u003e0",
+                           "computeSignal":  "OEY=fcf_per_share/price. X=OEY-risk_free_rate. score=clip(100*(X/0.06),-100,100) (6% excess -\u003e +100). If fcf_per_share\u003c=0 -\u003e -50. confidence=0.5 (FCF proxies OE without maintenance-vs-growth capex split), up to 0.6 if FCF clearly positive/stable. Crypto/ETF N/A.",
+                           "computeProjection":  "OEY is a direct expected-cash-return proxy; use as baseline expected return and add growth from revenue_growth. Higher, stable OEY implies a lower required risk premium.",
+                           "sources":  [
+                                           "Warren Buffett, Berkshire Hathaway 1986 Shareholder Letter, \u0027Owner Earnings\u0027 appendix",
+                                           "Robert Hagstrom, \u0027The Warren Buffett Way\u0027 (1994)"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "buffett-quality-fair-price",
+                           "name":  "Buffett Quality-at-Fair-Price (ROE/Moat)",
+                           "category":  "quality",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Buffett\u0027s evolution from Graham: buy durable-moat businesses (high stable ROE\u003e=15%, high margins, low debt) at a fair price. Codified in Validea/Hagstrom quantitative interpretations.",
+                           "rules":  "Quality gates: ROE=eps/bvps\u003e=15%; roa\u003e=7%; net_margin\u003e=10%; debt_to_equity\u003c=0.5; revenue_growth\u003e0; fcf_per_share\u003e0. Fair-price gate: P/E reasonable for the quality. Buy when quality passes AND price is fair.",
+                           "parameters":  "ROE_min=0.15; ROA_min=0.07; net_margin_min=0.10; debt_to_equity_max=0.5; revenue_growth\u003e0; fcf\u003e0",
+                           "computeSignal":  "Q in [0,1] = mean of q_roe=clip((eps/bvps)/0.20,0,1), q_roa=clip(roa/0.12,0,1), q_margin=clip(net_margin/0.20,0,1), q_debt=clip((0.5-debt_to_equity)/0.5,0,1), q_growth=clip(revenue_growth/0.10,0,1). price_score=clip((25-PE)/25,-1,1) (eps\u003c=0 -\u003e -1). score=clip(100*Q*(0.5+0.5*price_score),-100,100). confidence=clip(0.45+0.2*Q,0,0.6) (single snapshot can\u0027t verify 10yr ROE durability). Crypto/ETF N/A.",
+                           "computeProjection":  "Project expected return ~ ROE*retention + dividend yield (sustainable-growth model); moat lowers downside-risk estimate, fair-price gate prevents overpaying.",
+                           "sources":  [
+                                           "Robert Hagstrom, \u0027The Warren Buffett Way\u0027 (1994/2013)",
+                                           "Mary Buffett \u0026 David Clark, \u0027Buffettology\u0027 (1997)",
+                                           "https://blog.validea.com/building-a-quantitative-strategy-based-on-warren-buffetts-approach/"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "gross-profitability",
+                           "name":  "Novy-Marx Gross Profitability",
+                           "category":  "quality",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Robert Novy-Marx\u0027s gross-profitability premium (JFE 2013): gross profits scaled by total assets predict the cross-section of returns about as well as book-to-market; profitable firms earn higher returns.",
+                           "rules":  "GP=(sales-COGS)/total_assets. COGS not provided: proxy GP=ebit/total_assets (operating-profitability flavor), or use gross_margin if present. Rank GP across equities; long top tercile, avoid bottom. Slow-moving annual ranking.",
+                           "parameters":  "metric=gross_profits/total_assets; cross-sectional tercile; long top 33%; rebalance annually",
+                           "computeSignal":  "Compute GP (true if COGS/gross_margin available, else ebit/total_assets). Percentile-rank across equities. score=clip((GP_pct-50)*2,-100,100). Optional level blend: GP\u003e0.33 +10, GP\u003c0.10 -10. confidence=0.75 when true gross profit computable, 0.55 on ebit proxy. Crypto/ETF N/A.",
+                           "computeProjection":  "Profitability premium ~3.8%/yr long-short; a top-tercile name gets a positive tilt up to ~+3-4%/yr vs universe mean, decaying slowly. Low turnover; risk near market beta.",
+                           "sources":  [
+                                           "Robert Novy-Marx, \u0027The Other Side of Value: The Gross Profitability Premium\u0027, JFE 108(1), 2013 â€” https://rnm.simon.rochester.edu/research/OSoV.pdf"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "qmj-quality-minus-junk",
+                           "name":  "Quality Minus Junk (QMJ)",
+                           "category":  "quality",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Asness, Frazzini \u0026 Pedersen\u0027s QMJ (AQR; Review of Accounting Studies 2019): quality = profitable + growing + safe + (payout). Long high-quality, short junk; quality earns high risk-adjusted returns.",
+                           "rules":  "Composite z-score from four equal-weight pillars ranked cross-sectionally: Profitability (gross profit/assets, net_margin, roa, fcf/price); Growth (revenue_growth, proxy for 5yr profit growth); Safety (low debt_to_equity, low beta, high current_ratio, low return vol); Payout (dividend\u003e0 and dividend_growth\u003e=0, retained_earnings\u003e0). Long top 30%, short bottom 30%.",
+                           "parameters":  "pillars profitability/growth/safety/payout equal weight; long top 30%, short bottom 30%; safety uses beta+debt_to_equity+current_ratio",
+                           "computeSignal":  "Per equity, z=(x-cross_mean)/cross_std for each metric. Profitability_z=mean(z(net_margin),z(roa),z(gp/assets),z(fcf/price)). Growth_z=z(revenue_growth). Safety_z=mean(z(-debt_to_equity),z(-beta),z(current_ratio),z(-vol)). Payout_z=z(dividend\u003e0?dividend_growth:0)+bonus if retained_earnings\u003e0. Quality=mean of 4. score=clip(Quality_z*33,-100,100). confidence=0.7 base, -0.15 (growth uses single-period revenue_growth), +0.1 if all pillars valid. Crypto/ETF N/A.",
+                           "computeProjection":  "High-quality names get a modest positive tilt and notably lower drawdown/variance (safety pillar); use lower beta to reduce projected risk.",
+                           "sources":  [
+                                           "Asness, Frazzini \u0026 Pedersen, \u0027Quality Minus Junk\u0027, Review of Accounting Studies 24, 2019 â€” https://www.aqr.com/Insights/Research/Working-Paper/Quality-Minus-Junk"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "return-on-capital-compounder",
+                           "name":  "High Return-on-Capital Compounder",
+                           "category":  "quality",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Buffett/Greenblatt-style quality compounding: persistently high return on capital (ROA/ROE/ROIC) with strong FCF and low leverage signals a durable business that compounds shareholder value â€” the standalone \u0027quality\u0027 leg, ranked across the universe.",
+                           "rules":  "ROE=eps/bvps; ROC=ebit/(total_assets-total_liabilities); ROA given. Bullish when ROA\u003e=8-10%, ROE\u003e=15%, growing fcf_per_share\u003e0, debt_to_equity\u003c1.0. Rank return-on-capital across equities; favor top quintile.",
+                           "parameters":  "roa_min~0.08-0.10; roe_min~0.15; ROC=ebit/(total_assets-total_liabilities); debt_to_equity_max~1.0; rank top quintile",
+                           "computeSignal":  "ROE=eps/bvps; ROC=ebit/max(total_assets-total_liabilities,eps); rank ROC_pct and ROA_pct across equities. quality_rank=0.6*ROC_pct+0.4*ROA_pct. score=clip((quality_rank-50)*2,-100,100). +10 if ROE\u003e=15% and fcf\u003e0; -15 if debt_to_equity\u003e2; -20 if roa\u003c0 or eps\u003c0. confidence=0.7 base, +0.1 if ROE and FCF strong, -0.1 (ROE uses book-value proxy). Crypto/ETF N/A.",
+                           "computeProjection":  "High incremental ROIC supports above-average reinvestment-driven growth: positive expected-return tilt, lower fundamental volatility, faster mean-reversion in ROC than passive.",
+                           "sources":  [
+                                           "Joel Greenblatt, \u0027The Little Book That Beats the Market\u0027 (2005)",
+                                           "Robert G. Hagstrom, \u0027The Warren Buffett Way\u0027 (1994)"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "fama-french-5",
+                           "name":  "Fama-French 5-Factor (RMW + CMA)",
+                           "category":  "factor",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Fama \u0026 French\u0027s five-factor model (JFE 2015) adds profitability (RMW, Robust Minus Weak) and investment (CMA, Conservative Minus Aggressive) to the 3-factor model. Robust-profitability and conservative-investment firms outperform.",
+                           "rules":  "RMW: operating profitability OP=ebit/book_equity (book_equity=bvps*shares_out; fallback ebit/total_assets); robust=top 30%. CMA: investment=asset growth (no prior-year assets; proxy aggressiveness via high revenue_growth + negative FCF + no dividend); conservative=low. Long robust+conservative, avoid weak+aggressive. Corroborate with the supplied daily SMB/HML factor loadings.",
+                           "parameters":  "RMW=ebit/book_equity top/bottom 30%; CMA aggressiveness proxy=z(revenue_growth)+z(-fcf)+z(no dividend); book_equity=bvps*shares_out",
+                           "computeSignal":  "OP=ebit/book_equity. rmw_pct=percentile(OP) across equities; rmw_score=(rmw_pct-50)*2. Aggressiveness A=z(revenue_growth)+z(-fcf_per_share)+z(dividend==0?1:0); cma_score=clip(-A*33,-100,100). score=clip(0.6*rmw_score+0.4*cma_score,-100,100). If ebit\u003c=0 force \u003c=-30. confidence=0.55 (CMA leg uses asset-growth proxy; RMW clean). Crypto/ETF N/A.",
+                           "computeProjection":  "RMW ~+0.25%/mo, CMA positive-but-modest premium; tilt expected return up for robust+conservative names and use factor loadings (mkt/SMB/HML) for the systematic component and variance.",
+                           "sources":  [
+                                           "Fama \u0026 French, \u0027A Five-Factor Asset Pricing Model\u0027, JFE 116(1), 2015 â€” https://tevgeniou.github.io/EquityRiskFactors/bibliography/FiveFactor.pdf",
+                                           "Kenneth R. French Data Library (RMW/CMA definitions)"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "peg-lynch",
+                           "name":  "Peter Lynch PEG / GARP",
+                           "category":  "growth",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "Peter Lynch\u0027s Growth-At-a-Reasonable-Price (\u0027One Up on Wall Street\u0027): buy companies whose earnings growth exceeds the P/E paid (PEG\u003c1), with balance-sheet health filters.",
+                           "rules":  "PEG=(P/E)/(growth% as whole number). P/E=price/eps; growth proxy=revenue_growth*100 (no EPS-growth history). PEG~1 fair, \u003c1 attractive, \u003e2 expensive. Bullish when PEG\u003c1 and growth 15-30% (avoid \u003e50% as unsustainable). Filters: debt_to_equity\u003c0.6 (pref 0.25), current_ratio\u003e=1.0, eps\u003e0.",
+                           "parameters":  "peg_buy\u003c1.0,peg_fair=1.0,peg_sell\u003e2.0; growth_floor=15%,sweet 20-25%,ceiling=50%; debt_to_equity_max=0.6; current_ratio_min=1.0",
+                           "computeSignal":  "If eps\u003c=0 or revenue_growth\u003c=0 -\u003e score 0, conf 0.2. PE=price/eps; g=revenue_growth*100; PEG=PE/g. score=clamp(100*(1-PEG),-100,100). If g\u003c15 or g\u003e50 scale score*0.5. Quality: debt_to_equity\u003e0.6 -\u003e -20; current_ratio\u003c1 -\u003e -15; debt_to_equity\u003c0.25 and current_ratio\u003e=1.5 -\u003e +10. clamp [-100,100]. confidence=0.7 base, +0.15 if filters pass, -0.3 (revenue_growth proxies EPS growth); range 0.3-0.85.",
+                           "computeProjection":  "Sub-1.0 PEG implies underpriced growth; project annual excess return proportional to (1-PEG) capped ~+6%/yr, fading as PEG reverts to 1.0. Use the asset beta for variance.",
+                           "sources":  [
+                                           "Peter Lynch, \u0027One Up on Wall Street\u0027 (1989); \u0027Beating the Street\u0027 (1993)",
+                                           "ChartMill Peter Lynch screener documentation"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "canslim",
+                           "name":  "O\u0027Neil CAN SLIM",
+                           "category":  "growth",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "William O\u0027Neil\u0027s CAN SLIM growth system (\u0027How to Make Money in Stocks\u0027): blends strong earnings growth with technical leadership (relative strength, new highs) and overall market direction.",
+                           "rules":  "C/A=earnings strength: eps\u003e0 and revenue_growth\u003e=25% (proxy). N=new highs: price within 15% of 252-day high. L=leader: RS rank\u003e=80 in the universe by 126-252d return. S=supply/demand: rising price, smaller shares_out. I=institutional: proxy via persistent up-trend. M=market: only long when SPY\u003e200d SMA. Buy near breakouts while M positive.",
+                           "parameters":  "RS_rank_min=80; new_high prox within 15% of 252d high; earnings_growth_min=25% (revenue_growth proxy); market filter SPY\u003e200d SMA; RS lookback 126-252d",
+                           "computeSignal":  "RS=trailing 126d return; rank to percentile 0-100. high252=max close last 252d; prox=close/high252. marketOK=SPY\u003e200d SMA. earningsOK=eps\u003e0 and revenue_growth\u003e=0.25. base=(RS_pct-50)*2. +20 if prox\u003e=0.85, +15 if prox\u003e=0.99; +15 if earningsOK, -15 if eps\u003c=0. If NOT marketOK multiply positive score by 0.3. clamp [-100,100]. confidence=0.6 base, +0.2 if earningsOK and marketOK, -0.2 (quarterly EPS acceleration/sponsorship proxied); range 0.3-0.85.",
+                           "computeProjection":  "Top-RS names near new highs continue to outperform 3-12 months; project positive drift scaled by RS percentile, cut sharply when M negative. Higher idiosyncratic risk â€” widen variance.",
+                           "sources":  [
+                                           "William J. O\u0027Neil, \u0027How to Make Money in Stocks\u0027 (4th ed., 2009)",
+                                           "AAII CAN SLIM screen â€” https://www.aaii.com/stocks/screens/78"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "chowder-rule",
+                           "name":  "Chowder Rule (Dividend Growth)",
+                           "category":  "dividend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "Dividend-growth screen (Seeking Alpha \u0027Chowder\u0027 / David Fish CCC lists): Chowder Number = current yield + 5yr dividend growth rate, approximating potential total return with a margin of safety against sector-specific thresholds.",
+                           "rules":  "Chowder = yield% + dgr%. Thresholds: non-utility yield\u003e=3% needs Chowder\u003e=12; non-utility yield\u003c3% needs \u003e=15; utility-like (slow-growth high-yield) needs \u003e=8. Pass when above threshold AND payout\u003c~75% of EPS. Non-payer neutral.",
+                           "parameters":  "dgr window proxy=single dividend_growth field; T={12 if yield\u003e=3 else 15; 8 for utility-like}; safe payout 0.3-0.6; cut at payout\u003e0.9; squash scale=6",
+                           "computeSignal":  "yield_pct=100*dividend/price; dgr_pct=100*dividend_growth (proxy for 5yr DGR). chowder=yield_pct+dgr_pct. Pick T (15 if yield\u003c3 else 12; 8 if utility-like with yield\u003e=4 and dgr\u003c=6). margin=chowder-T. score=clamp(squash(margin,scale=6),-100,100). If dividend\u003c=0 -\u003e score 0, conf 0.15. If dividend/eps\u003e0.9 multiply score by 0.5. confidence=clamp(0.4+0.4*min(1,|margin|/6),0,1), cap 0.7 when payout in 0.3-0.6 band.",
+                           "computeProjection":  "Chowder Number itself estimates expected annual total return; feed expected_annual_return~chowder/100 capped 0.20 as a mild upward drift for 1Y+ horizons; not a short-horizon vol input.",
+                           "sources":  [
+                                           "Sure Dividend, \u0027The Chowder Rule Explained\u0027 â€” https://www.suredividend.com/the-chowder-rule-explained/",
+                                           "David Fish CCC Lists, DripInvesting.org"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "dogs-of-dow",
+                           "name":  "Dogs of the Dow (High-Yield Blue Chips)",
+                           "category":  "dividend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "Michael O\u0027Higgins (\u0027Beating the Dow\u0027, 1991): each January buy the 10 highest-yielding Dow stocks, equal-weight, hold one year. An elevated yield on a quality blue chip signals a temporarily depressed price (value/mean-reversion).",
+                           "rules":  "Rank dividend-paying equities by trailing yield (dividend/price). Top 10 = buy, equal-weight; rest hold/avoid. Hold 12 months, re-rank. Entering top decile is bullish; falling out loses the signal. Exclude non-payers.",
+                           "parameters":  "rank set=dividend-paying equities (Dow proxy); top 10 by yield equal-weight; annual rebalance; quality dampener at payout\u003e1.0; squash scale=0.35",
+                           "computeSignal":  "yield=dividend/price. Compute cross-sectional yield percentile among payers. score=squash(percentile-0.5,scale=0.35) (top ~90th pct ~+76). Non-payers -\u003e score 0, conf 0.1. confidence=clamp(0.35+0.4*|percentile-0.5|*2,0,1). Dampen score*0.6 if dividend/eps\u003e1.0 (yield high because earnings collapsed â€” likely cut).",
+                           "computeProjection":  "Mild value/mean-reversion tilt: high relative yield implies depressed price likely to revert. Add ~+2% annualized drift for top-decile Dogs; neutral on vol.",
+                           "sources":  [
+                                           "Michael O\u0027Higgins \u0026 John Downes, \u0027Beating the Dow\u0027 (1991)",
+                                           "https://en.wikipedia.org/wiki/Dogs_of_the_Dow"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "small-dogs-of-dow",
+                           "name":  "Small Dogs of the Dow (Low-Priced 5)",
+                           "category":  "dividend",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "O\u0027Higgins concentrated variant: from the 10 Dogs take the 5 lowest-priced, equal-weight. Lower-priced shares historically show larger percentage moves, amplifying the rebound at the cost of diversification.",
+                           "rules":  "From the top-10 yielders, rank by nominal price ascending and select the 5 lowest-priced. Equal-weight, hold one year, rebalance. High-yield AND low-priced is strongest; high-yield high-priced weaker; not a Dog neutral.",
+                           "parameters":  "stage-1=top 10 yielders; stage-2=5 lowest-priced; equal weight; annual rebalance; confidence cap 0.5; squash scale=0.3",
+                           "computeSignal":  "Stage 1 yield percentile (as Dogs). Stage 2 among top-10 yielders compute inverse-price rank. For Dogs: combined=0.5*(yield_pct-0.5)+0.5*((1-price_pct)-0.5); for non-Dogs combined=0.4*(yield_pct-0.5). score=squash(combined,scale=0.3). confidence=clamp(0.3+0.4*min(1,|combined|/0.5),0,1), cap 0.5 (low diversification). Non-payers -\u003e 0.",
+                           "computeProjection":  "Same value/mean-reversion tilt as Dogs but stronger and noisier; apply +2% drift to the 5 selected and widen projected vol x1.1 for concentration.",
+                           "sources":  [
+                                           "Michael O\u0027Higgins \u0026 John Downes, \u0027Beating the Dow\u0027 (1991, rev.)",
+                                           "AAII \u0027Dogs of the Dow: Low Priced 5\u0027 screen â€” https://www.aaii.com/stocks/screens/83"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "shareholder-yield",
+                           "name":  "Shareholder Yield (Mebane Faber)",
+                           "category":  "dividend",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Meb Faber (\u0027Shareholder Yield\u0027, 2013): total cash returned = dividend yield + net buyback yield + net debt-paydown yield. Outperforms dividend yield alone because buybacks and deleveraging are tax-advantaged and harder to fake.",
+                           "rules":  "Shareholder Yield = div yield + net buyback yield + net debt-paydown yield. No buyback/debt-flow series: proxy. divYield=dividend/price; buyback proxy=max(0, fcf_per_share-dividend)/price (covered FCF surplus funds repurchases); debt tilt=clamp(1-debt_to_equity,-0.5,0.5)*0.03. Rank universe; overweight top quintile.",
+                           "parameters":  "divYield=dividend/price; buyback proxy=max(0,fcf-dividend)/price; debt tilt=clamp(1-debt_to_equity,-0.5,0.5)*0.03; ref yield=4%; squash scale=0.05; conf cap 0.55",
+                           "computeSignal":  "shareholderYieldProxy=divYield+max(0,(fcf_per_share-dividend))/price+clamp(1-debt_to_equity,-0.5,0.5)*0.03. score=squash(shareholderYieldProxy-0.04,scale=0.05) (~9% -\u003e +76). confidence=clamp(0.35+0.4*min(1,proxy/0.10),0,1) cap 0.55 (buyback/debt proxied). Crypto/ETF with fcf=0 -\u003e score 0, conf 0.1.",
+                           "computeProjection":  "High total shareholder yield is a value/quality signal with positive forward excess returns; use proxy capped 0.12 as a small additive 1Y drift premium; neutral on vol.",
+                           "sources":  [
+                                           "Mebane T. Faber, \u0027Shareholder Yield: A Better Approach to Dividend Investing\u0027 (2013)",
+                                           "https://en.wikipedia.org/wiki/Shareholder_yield"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "dividend-safety",
+                           "name":  "Dividend Safety (Yield + Payout/Coverage)",
+                           "category":  "dividend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "Canonical income safety screen (CFA Institute \u0027Analysis of Dividend Safety\u0027; Simply Safe Dividends): combine an attractive yield with a sustainable payout. Dividends covered by a low fraction of earnings and FCF, with manageable leverage, are far less likely to be cut.",
+                           "rules":  "EPS payout=dividend/eps (safe 0.30-0.60, caution 0.60-0.75, danger \u003e0.75). FCF payout=dividend/fcf_per_share (sustainable \u003c1.0). Leverage check debt_to_equity below norm, current_ratio\u003e=1. Buy yield\u003e=2.5% with safe payout, FCF coverage\u003e1x, healthy balance sheet. Flag/avoid payout\u003e1 or FCF payout\u003e1.",
+                           "parameters":  "safe eps_payout 0.3-0.6 (caution 0.75); FCF coverage\u003e=1.0x; leverage flag debt_to_equity\u003e1.5; liquidity flag current_ratio\u003c1; yield neutral 2%, attractive 6%; safety weight 0.6 vs yield 0.4",
+                           "computeSignal":  "yield=dividend/price; eps_payout=dividend/eps; fcf_payout=dividend/fcf_per_share. safetyScore start 1.0: if eps_payout\u003e0.6 subtract (eps_payout-0.6)/0.4 (cap 0.5); if fcf_payout\u003e1 subtract min(0.4,fcf_payout-1); if debt_to_equity\u003e1.5 subtract 0.15; if current_ratio\u003c1 subtract 0.1; clamp [0,1]. yieldAttr=clamp((yield-0.02)/0.04,-1,1). raw=(2*safetyScore-1)*0.6+yieldAttr*0.4. score=clamp(100*raw,-100,100). dividend\u003c=0 -\u003e 0, conf 0.1. If eps\u003c=0 or fcf\u003c=0 cap |score| at 30. confidence=clamp(0.4+0.4*safetyScore,0,0.85).",
+                           "computeProjection":  "Quality/low-risk income signal: well-covered dividends correlate with lower drawdown; narrow projected downside vol x0.95 for high-safety names; no upside-drift claim.",
+                           "sources":  [
+                                           "CFA Institute, \u0027Analysis of Dividend Safety\u0027 â€” https://analystprep.com/study-notes/cfa-level-2/analysis-of-dividend-safety/",
+                                           "Simply Safe Dividends â€” Dividend Safety Score methodology"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "dividend-growth-aristocrats",
+                           "name":  "Dividend Growth / Aristocrats (Yield-on-Cost)",
+                           "category":  "dividend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "The dividend-growth discipline behind the S\u0026P 500 Dividend Aristocrats (25+ consecutive annual increases) and Fish\u0027s CCC lists: own firms that reliably raise dividends, letting yield-on-cost compound; durable growing payouts signal managerial discipline and earnings durability.",
+                           "rules":  "Require positive durable dividend growth. Favor dividend_growth in a healthy 5-12% range with payout\u003c~65% (room to keep raising). Estimated 10yr yield-on-cost = current_yield*(1+g)^10. Buy when growth strong and sustainable; downgrade when growth stalls or payout stretched. Non-payers excluded.",
+                           "parameters":  "growth proxy=dividend_growth; healthy band 5-12%; payout cap 0.65; YoC horizon 10yr; growthScore neutral g=4%, scale 0.05; weights growth 0.6/YoC 0.4; conf cap 0.7",
+                           "computeSignal":  "yield0=dividend/price; g=dividend_growth; yoc10=yield0*(1+g)^10. growthScore=squash(g-0.04,scale=0.05). yocBoost=squash(yoc10-2*yield0,scale=0.03). payout=dividend/eps; if payout\u003e0.65 multiply growthScore by max(0.3,1-(payout-0.65)/0.35). score=clamp(0.6*growthScore+0.4*yocBoost,-100,100). If dividend\u003c=0 or g\u003c=0 -\u003e at most slightly negative, conf 0.2. confidence=clamp(0.4+0.4*min(1,|g|/0.10),0,1), cap 0.7 (streak unverified).",
+                           "computeProjection":  "Compounding-income + quality signal: project forward total-return drift = yield0+g (Gordon-style) capped 0.15 annualized for 1Y+ horizons on sustainable names; neutral on short-horizon vol.",
+                           "sources":  [
+                                           "S\u0026P Dow Jones Indices, \u0027S\u0026P 500 Dividend Aristocrats\u0027 methodology",
+                                           "David Fish, \u0027U.S. Dividend Champions\u0027 (CCC), DripInvesting.org",
+                                           "Gordon (1959) growth model"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "cross-sectional-momentum",
+                           "name":  "Cross-Sectional Momentum (12-1, Jegadeesh-Titman)",
+                           "category":  "momentum",
+                           "assetClasses":  [
+                                                "equity",
+                                                "crypto",
+                                                "etf"
+                                            ],
+                           "summary":  "The relative-strength momentum anomaly: rank assets by trailing 12-month return skipping the most recent month, long winners short losers. Jegadeesh \u0026 Titman (1993); basis of the academic UMD/MOM factor. (Distinct from app\u0027s single-asset \u0027momentum\u0027: this is the cross-sectional ranking with the skip-month spec.)",
+                           "rules":  "Formation: cumulative return from t-252 to t-21 (12m excluding last ~21d to avoid 1-month reversal). Cross-sectionally rank the 24 assets monthly; equal-weight long top tertile, short bottom tertile (or top/bottom ~8). Hold 1 month, re-rank.",
+                           "parameters":  "formation_lookback=252; skip_recent=21; holding=21; long=top 33%, short=bottom 33%; equal-weighted",
+                           "computeSignal":  "r_12_1=Close[t-21]/Close[t-252]-1 per asset. z=(r_12_1-mean)/std across the 24 assets. score=clip(z*40,-100,100) (+2.5 sigma ~+100). confidence=min(1,n_valid/24)*min(1,history_days/252); reduce when \u003c252d or cross-sectional std near zero.",
+                           "computeProjection":  "Winners\u0027 next-month expected excess return is positive (~0.5-1%/mo spread); map score to an expected-return overlay proportional to score; note negative skew / crash risk â€” raise downside variance after extreme market drawdowns.",
+                           "sources":  [
+                                           "Jegadeesh \u0026 Titman (1993), \u0027Returns to Buying Winners and Selling Losers\u0027, Journal of Finance 48(1):65-91",
+                                           "https://alphaarchitect.com/momentum-factor-investing-30-years-of-out-of-sample-data/"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "tsmom",
+                           "name":  "Time-Series (Absolute) Momentum with Vol Scaling",
+                           "category":  "momentum",
+                           "assetClasses":  [
+                                                "equity",
+                                                "crypto",
+                                                "etf"
+                                            ],
+                           "summary":  "Trade each asset on the sign of its own trailing ~12-month excess return (long if positive, short/flat if negative), sizing inversely to ex-ante volatility to target constant risk. Moskowitz, Ooi \u0026 Pedersen (2012) across 58 futures. (Merges the two TSMOM/absolute-momentum research items.)",
+                           "rules":  "signal=sign(trailing 12m excess return = 12m total return - 12m risk-free). Long if \u003e0, short/flat if \u003c0. weight=sign*(target_vol/sigma_ex_ante), target_vol~40% annualized (or 10-15% unlevered). sigma=EWMA of daily squared returns (delta=0.94 RiskMetrics) annualized by sqrt(252). Rebalance monthly.",
+                           "parameters":  "lookback=252; target_vol=0.40 (or 0.10-0.15 unlevered); vol estimator EWMA delta=0.94, annualize sqrt(252); long/short or long/cash",
+                           "computeSignal":  "r_12m=Close[t]/Close[t-252]-1; rf_12m=trailing-12m sum of daily risk-free. excess=r_12m-rf_12m. sigma_annual=sqrt(252*EWMA(r_daily^2,0.94)). raw=excess/sigma_annual. score=clip(tanh(raw)*100,-100,100). confidence=min(1,history_days/252)*clip(|excess|/sigma_annual,0.3,1).",
+                           "computeProjection":  "Positive trend predicts continued positive excess return ~1yr; feed sign*magnitude into expected return; use sigma_ex_ante as forward vol and scale to target_vol. \u0027Crisis alpha\u0027 lowers projected tail risk in trending bear markets.",
+                           "sources":  [
+                                           "Moskowitz, Ooi \u0026 Pedersen (2012), \u0027Time Series Momentum\u0027, JFE 104(2):228-250",
+                                           "https://www.aqr.com/Insights/Research/Journal-Article/Time-Series-Momentum"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "dual-momentum",
+                           "name":  "Dual Momentum / GEM (Antonacci)",
+                           "category":  "allocation",
+                           "assetClasses":  [
+                                                "etf",
+                                                "equity"
+                                            ],
+                           "summary":  "Combines relative momentum (stronger of US vs ex-US equities) with absolute momentum (hold equities only if they beat T-bills, else bonds). Gary Antonacci (\u0027Dual Momentum Investing\u0027, 2014); GEM matched/beat the S\u0026P 500 with ~half the max drawdown.",
+                           "rules":  "Monthly on trailing 12m total returns: (1) relative â€” pick higher-return equity proxy (SPY vs ex-US/QQQ proxy); (2) absolute â€” if winner\u0027s 12m \u003e 12m T-bill, hold the winning equity; else hold bonds/GLD (defensive). With this universe SPY/QQQ are US-equity proxies, GLD/cash the defensive sleeve (flag proxy if no true bond ETF).",
+                           "parameters":  "lookback=252 (12m total return); rebalance monthly; assets: US equity (SPY), competitor (ex-US or QQQ proxy), defensive (bond ETF or GLD); absolute hurdle = trailing 12m risk-free",
+                           "computeSignal":  "Per candidate r_12m from closes, rf_12m from factor series. abs_mom=r_12m-rf_12m. rel_rank=r_12m minus best competitor\u0027s. Equity score=clip(50*sign(abs_mom)+50*sign(rel_winner),-100,100). Defensive (bond/GLD) score positive when equities fail the absolute filter, else low. confidence=min(1,history_days/252), higher when |abs_mom| far from hurdle.",
+                           "computeProjection":  "Regime/allocation signal: positive equity absolute momentum -\u003e equity-like return and vol; negative -\u003e defensive asset\u0027s lower return and much lower drawdown. Sets risk-on vs risk-off portfolio beta.",
+                           "sources":  [
+                                           "Antonacci (2014), \u0027Dual Momentum Investing\u0027, McGraw-Hill",
+                                           "Antonacci (2013), \u0027Risk Premia Harvesting Through Dual Momentum\u0027, SSRN 2042750"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "absolute-momentum-overlay",
+                           "name":  "Absolute Momentum Trend Overlay (Antonacci)",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "crypto",
+                                                "etf"
+                                            ],
+                           "summary":  "Single-asset trend filter: be invested only when an asset\u0027s trailing 12-month return exceeds the risk-free rate, else go to cash/defensive. Antonacci (2013) â€” mainly cuts volatility and drawdown; a universal trend-following overlay.",
+                           "rules":  "Monthly compute trailing 12m excess return = 12m total return - 12m cash return. If \u003e0 stay long/risk-on; if \u003c=0 exit to cash/defensive. Binary per-asset switch, no peer comparison. Optional: require 2 consecutive confirmations to cut whipsaw.",
+                           "parameters":  "lookback=252; hurdle=trailing 12m risk-free; rebalance monthly; optional 2-reading confirmation",
+                           "computeSignal":  "r_12m=Close[t]/Close[t-252]-1; rf_12m=trailing-12m sum of daily risk-free. excess=r_12m-rf_12m. sigma=sqrt(252*var of daily returns). score=clip(100*tanh((excess/sigma)*1.5),-100,100). confidence=min(1,history_days/252), rising with |excess|/sigma.",
+                           "computeProjection":  "Acts as a gate/regime multiplier: multiply other bullish expected returns by max(0,score/100) so positions are only taken in confirmed uptrends. Lowers projected max drawdown and downside vol vs buy-and-hold.",
+                           "sources":  [
+                                           "Antonacci (2013), \u0027Absolute Momentum: A Simple Rule-Based Strategy and Universal Trend-Following Overlay\u0027, SSRN 2244633"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "52w-high",
+                           "name":  "52-Week High Proximity / Breakout (George-Hwang)",
+                           "category":  "momentum",
+                           "assetClasses":  [
+                                                "equity",
+                                                "crypto",
+                                                "etf"
+                                            ],
+                           "summary":  "Rank assets by how close price is to its 52-week high; nearness predicts higher future returns and subsumes much of Jegadeesh-Titman momentum (anchoring). George \u0026 Hwang (2004). Also serves as a Donchian/Darvas long-term breakout entry. (Merges the two 52-week-high research items.)",
+                           "rules":  "PR=Close/HH252 (HH252=highest high over 252 days), in (0,1]; 1.0 = at a new 52-week high. Rank cross-sectionally; long top 30% (nearest high), avoid bottom 30%. Breakout variant: enter when close breaks prior-day HH252; trail exit on a 50-day low or PR\u003c0.75. George-Hwang returns do NOT reverse long-run.",
+                           "parameters":  "high_window=252; long=top 30%, avoid=bottom 30%; entry breakout=close\u003eprior HH252; exit=50-day low or PR\u003c0.75; rebalance monthly",
+                           "computeSignal":  "high252=max(High[t-252..t]); PR=Close/high252. score=clip((PR-0.85)/0.15*100,-100,100) (PR=1.0 ~+100, 0.85 ~0, \u003c=0.70 ~-100); flip strongly negative on a new 52-week low. confidence=min(1,history_days/252), reduced if highly volatile/noisy.",
+                           "computeProjection":  "Near-high names carry a positive tilt that persists without long-run reversal (George-Hwang); weight expected return up for high-PR names. A failed breakout gives a clean stop at the high-water mark, bounding projected downside.",
+                           "sources":  [
+                                           "George \u0026 Hwang (2004), \u0027The 52-Week High and Momentum Investing\u0027, Journal of Finance 59(5):2145-2176",
+                                           "Darvas (1960), \u0027How I Made $2,000,000 in the Stock Market\u0027"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "relative-strength-rotation",
+                           "name":  "Relative-Strength Rotation (Faber)",
+                           "category":  "momentum",
+                           "assetClasses":  [
+                                                "etf",
+                                                "equity"
+                                            ],
+                           "summary":  "Rank a universe of ETFs/sectors by recent relative strength and hold the top-N each month, gated by a long-term trend filter on the broad market. Faber \u0026 Richardson, \u0027Relative Strength Strategies for Investing\u0027 (Cambria); beat buy-and-hold ~70% of the time.",
+                           "rules":  "Composite RS = average of 1/3/6/12-month total returns. Hold top N (e.g. top 3 equal-weight). Rebalance monthly; replace holdings that fall out. Trend gate: only hold equity sleeves while SPY\u003e200d SMA, else cash.",
+                           "parameters":  "ranking lookbacks {21,63,126,252} averaged; top_N=3 equal-weight; rebalance monthly; trend filter SPY\u003eSMA200; cash when below",
+                           "computeSignal":  "rs=mean(Close[t]/Close[t-21]-1, .../63, .../126, .../252). z=(rs-mean)/std across rotation universe. base=clip(z*40,-100,100). If SPY\u003c200d SMA multiply by 0.0-0.3 (risk-off). confidence=min(1,history_days/252)*(1 if trend filter agrees with sign else 0.5).",
+                           "computeProjection":  "Allocation signal: capital into top-N highest-RS assets, zero into the rest; the SMA gate caps drawdown by exiting to cash in bear regimes (the main vol/drawdown lever).",
+                           "sources":  [
+                                           "Faber \u0026 Richardson (2010), \u0027Relative Strength Strategies for Investing\u0027, Cambria",
+                                           "Faber (2007), \u0027A Quantitative Approach to Tactical Asset Allocation\u0027"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "frog-in-the-pan-momentum",
+                           "name":  "Risk-Adjusted (Frog-in-the-Pan) Momentum",
+                           "category":  "momentum",
+                           "assetClasses":  [
+                                                "equity",
+                                                "crypto",
+                                                "etf"
+                                            ],
+                           "summary":  "Refines 12-1 momentum by preferring smooth, high-consistency trends over jumpy ones. Da, Gurun \u0026 Warachka (2014): continuous information (steady gains, high % up-days) produces stronger, more persistent momentum.",
+                           "rules":  "Compute 12-1 momentum (t-252 to t-21). Information-discreteness ID=sign(PRET)*(%down_days-%up_days). Low ID=smooth (stronger), high ID=jumpy (weaker). Long high-momentum AND low-ID (smooth winners). Equivalently scale momentum by information ratio (return/vol). Rebalance monthly.",
+                           "parameters":  "formation 252 to 21; smoothness window=formation; ID=sign(PRET)*(pct_down-pct_up); prefer low ID; or IR=formation_return/formation_daily_vol",
+                           "computeSignal":  "z_mom=cross-sectional z of r_12_1. IR=r_12_1/(daily_std*sqrt(252)); consistency C=(up_days-down_days)/total signed by trend. smoothness multiplier m=clip(0.5+0.5*normalized(IR or -ID),0.3,1.0). score=clip(z_mom*40*m,-100,100). confidence=min(1,history_days/252), rising with smoothness (low ID/high IR).",
+                           "computeProjection":  "Smooth/high-IR winners have higher, more durable forward returns and less reversal: project a longer holding horizon and higher Sharpe; jumpy winners get a shorter horizon and wider downside variance.",
+                           "sources":  [
+                                           "Da, Gurun \u0026 Warachka (2014), \u0027Frog in the Pan: Continuous Information and Momentum\u0027, Review of Financial Studies 27(7):2171-2218"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "faber-taa",
+                           "name":  "Faber 10-Month / 200-Day SMA Timing",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Mebane Faber\u0027s tactical timing: hold the asset only when its monthly close is above its 10-month SMA (~200-day), else go to cash. Faber (2006) â€” equity-like returns with bond-like drawdowns by sidestepping major bear markets.",
+                           "rules":  "Monthly (last trading day) compute SMA10m (~200-day SMA of daily closes). Hold if close\u003eSMA; sell to cash (earn risk-free) if below. Re-enter on the next monthly close back above. Long-or-cash, no shorting. Optional 0.5-1% whipsaw band.",
+                           "parameters":  "lookback=10 months (~200d); monthly evaluation; daily proxy 200-day SMA; optional band +-0.5%; long-or-cash",
+                           "computeSignal":  "P=latest close, SMA200=200-day SMA, d=(P-SMA200)/SMA200. score=clamp(d/0.10*100,-100,100) (10%+ above saturates +100, 10%+ below -100). confidence=clamp(0.4+|SMA200 slope over 20d normalized|*k,0.4,0.9) (higher when SMA sloping with the signal). Need \u003e=200 bars else lower confidence.",
+                           "computeProjection":  "When P\u003eSMA200 project the asset\u0027s risk premium (trailing mean return annualized, or beta-adjusted market return); when below project the risk-free rate. Risk = realized 200-day stdev; cash state risk ~near-zero. Cuts max drawdown ~in half vs buy-and-hold.",
+                           "sources":  [
+                                           "Faber (2007), \u0027A Quantitative Approach to Tactical Asset Allocation\u0027, Journal of Wealth Management, SSRN 962461",
+                                           "https://mebfaber.com/timing-model/"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "donchian-turtle",
+                           "name":  "Donchian Channel / Turtle Breakout",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "The classic Turtle trend-following system (Dennis \u0026 Eckhardt, 1983) built on Donchian channels. Enter long on a new N-day high, exit on the opposite shorter-channel low. System 1: 20-day entry / 10-day exit; System 2: 55-day entry / 20-day exit. Sizing/stops scaled by N (20-day ATR).",
+                           "rules":  "System 1: buy when close\u003ehighest high of prior 20 days; exit when close\u003clowest low of prior 10 days (skip if last 20d breakout was a winner â€” whipsaw filter). System 2: buy on new 55-day high; exit on new 20-day low. Stops=entry-2N; add to winners in 0.5N steps up to 4 units. N=Wilder 20-day ATR, TR=max(high-low,|high-prevClose|,|low-prevClose|).",
+                           "parameters":  "S1 entry 20 / exit 10 (filter on); S2 entry 55 / exit 20 (filter off); N=20-day ATR Wilder; stop=2N; pyramiding 0.5N max 4 units; unit risk 1% equity/N",
+                           "computeSignal":  "HH20/LL10 (S1), HH55/LL20 (S2) from daily highs/lows. State long if a 20/55-day high broke and price hasn\u0027t since hit the 10/20-day low. score=+100 on fresh upside breakout, decay toward +40 while long; -100 on fresh downside breakout. Continuous variant: clamp(((P-midline)/(0.5*(HH-LL)))*100,-100,100), midline=(HH20+LL20)/2. confidence=clamp(0.3+min(channel_width_in_N,5)/5*0.6,0.3,0.9), reduced if prior breakout was a loser.",
+                           "computeProjection":  "On a confirmed breakout project continuation at the trailing momentum rate while the 2N stop caps downside; use N (20-day ATR) as the per-day vol scale for sizing.",
+                           "sources":  [
+                                           "Curtis Faith (2007), \u0027Way of the Turtle\u0027, McGraw-Hill",
+                                           "\u0027The Original Turtle Trading Rules\u0027 â€” https://www.turtletrader.com/rules/"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "golden-cross",
+                           "name":  "Golden Cross / Death Cross (50/200 SMA)",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Long-term trend regime filter: a Golden Cross (50-day SMA above 200-day) is bullish, a Death Cross (50-day below 200-day) bearish. Widely used by institutions and the press; trims drawdowns more reliably than it boosts raw return.",
+                           "rules":  "SMA50 and SMA200 of daily closes. Golden Cross (long): SMA50 crosses above SMA200. Death Cross (cash): SMA50 crosses below SMA200. Regime persists until the opposite cross. Optionally require SMA200 flat-to-rising to confirm.",
+                           "parameters":  "short MA=50, long MA=200 SMA on daily closes; signal=sign(SMA50-SMA200); need \u003e=200 bars",
+                           "computeSignal":  "spread=(SMA50-SMA200)/SMA200. score=clamp(spread/0.10*100,-100,100). Freshness boost: if a cross occurred within last 5 bars push |score| toward 100. confidence=clamp(0.4+min(|spread|/0.05,1)*0.3+(SMA200 slope agrees?0.2:0),0.4,0.95); low at the crossover (whipsaw), rising as the gap widens.",
+                           "computeProjection":  "Golden-cross regime -\u003e project the asset\u0027s trailing positive drift; death-cross -\u003e flat/risk-free (assume exited). Risk = 200-day realized stdev. Roughly matches buy-and-hold returns while reducing drawdown.",
+                           "sources":  [
+                                           "Corporate Finance Institute â€” Death Cross â€” https://corporatefinanceinstitute.com/resources/capital-markets/death-cross/",
+                                           "QuantifiedStrategies, \u0027Does the Death Cross Actually Work?\u0027 (65-yr backtest)"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "supertrend",
+                           "name":  "Supertrend (ATR Trailing Trend)",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Volatility-adaptive trend indicator (Olivier Seban): an ATR-scaled band trails price; closing above flips the trend bullish, below flips bearish. Default period 10, multiplier 3. Self-adjusts to volatility unlike fixed MAs.",
+                           "rules":  "ATR(10) Wilder; hl2=(high+low)/2; basicUpper=hl2+3*ATR, basicLower=hl2-3*ATR; carry final bands forward. Trend up (bullish, line=finalLower) when close\u003eprevFinalUpper; down when close\u003cprevFinalLower; else carry. Buy on flip up, exit/short on flip down. The line is the trailing stop.",
+                           "parameters":  "ATR period=10, multiplier=3; Wilder ATR; variations period 7-14, mult 1.5-4",
+                           "computeSignal":  "If close\u003eSupertrend line trend up (positive), else negative. score=clamp(((close-Supertrend)/(3*ATR))*100,-100,100) (one full band away saturates +-100). Boost |score| toward 100 on the flip bar. confidence=clamp(0.4+min(ATR_pct_rank,1)*0.2+persistence_bars/20*0.3,0.4,0.9); drops when close hugs the line.",
+                           "computeProjection":  "Project trend continuation while price stays the favorable side; the line is the projected stop, so expected loss if wrong ~(close-Supertrend). Risk scale = 3*ATR. Best as a timing/stop overlay.",
+                           "sources":  [
+                                           "Olivier Seban â€” SuperTrend indicator",
+                                           "TradingView Supertrend docs â€” https://www.tradingview.com/support/solutions/43000634738-supertrend/"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "ma-ribbon",
+                           "name":  "Moving-Average Ribbon Alignment",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "A multi-MA \u0027ribbon\u0027 (10/20/50/100/200) read as one trend gauge: stacked-in-order and fanning apart = strong trend; compressing or crossing = fading/reversing. Generalizes single MA crossovers (Guppy\u0027s GMMA).",
+                           "rules":  "SMAs of daily closes for {10,20,50,100,200}. Bullish: SMA10\u003eSMA20\u003eSMA50\u003eSMA100\u003eSMA200 and price\u003eSMA10. Bearish: reverse order. Wider monotonic separation=stronger; compression=weakening. Enter on transition into full alignment, exit on loss of alignment.",
+                           "parameters":  "ribbon {10,20,50,100,200} SMA daily closes (EMA variant for speed); alignment from pairwise ordering; separation as fraction of price",
+                           "computeSignal":  "ordered_score=(bullish-ordered pairs - bearish-ordered pairs)/total pairs in [-1,1]. W=mean(|SMA_i-SMA_{i+1}|)/price (fan width). score=clamp(ordered_score*(0.6+0.4*min(W/0.04,1))*100,-100,100). confidence=clamp(0.3+|ordered_score|*0.4+min(W/0.04,1)*0.25,0.3,0.9); high when fully aligned/fanned, low when tangled.",
+                           "computeProjection":  "Project drift in the alignment direction scaled by fan width (wider=stronger continuation, use trailing return); ribbon compression flags rising reversal probability â€” widen risk (shorter-window vol) when separation collapses.",
+                           "sources":  [
+                                           "Daryl Guppy â€” Guppy Multiple Moving Average (GMMA)",
+                                           "QuantifiedStrategies â€” EMA Ribbon strategy â€” https://www.quantifiedstrategies.com/exponential-moving-average-ribbon/"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "dual-ma-crossover",
+                           "name":  "Dual Moving-Average Crossover (Fast/Slow)",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Foundational systematic trend rule: long when a fast MA crosses above a slow MA, exit/short when below. Studied by Brock, Lakonishok \u0026 LeBaron (1992); AQR confirms trend premia. A faster sibling of the 50/200 golden cross (e.g. 20/100, 12/26 EMA).",
+                           "rules":  "Fast MA (e.g. 20-day) and slow MA (e.g. 100-day) of daily closes. Long when fastMA\u003eslowMA, exit/short when fastMA\u003cslowMA. EMA variant 12/26 (MACD line\u003e0). Hold until opposite cross. A confirmation band reduces whipsaws.",
+                           "parameters":  "default fast=20, slow=100 SMA (configurable 10/50, 12/26 EMA, 50/200); signal=sign(fastMA-slowMA); EMA alpha=2/(N+1)",
+                           "computeSignal":  "spread=(fastMA-slowMA)/slowMA. score=clamp(spread/0.06*100,-100,100) (tune divisor to the pair). Freshness: boost |score| if crossover within last ~3 bars. confidence=clamp(0.35+min(|spread|/0.03,1)*0.35+(slowMA slope agrees?0.2:0),0.35,0.9); lowest at the crossover.",
+                           "computeProjection":  "Project positive drift while fast\u003eslow (trailing return), flat/risk-free otherwise. Faster pairs catch trends earlier but whipsaw more (lower hit-rate, larger winners). Risk=realized stdev over the slow-MA window.",
+                           "sources":  [
+                                           "Brock, Lakonishok \u0026 LeBaron (1992), \u0027Simple Technical Trading Rules\u0027, Journal of Finance 47(5):1731-1764",
+                                           "Hurst, Ooi \u0026 Pedersen (AQR, 2017), \u0027A Century of Evidence on Trend-Following Investing\u0027"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "connors-rsi2",
+                           "name":  "Connors RSI(2) Mean Reversion",
+                           "category":  "mean-reversion",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Larry Connors\u0027 2-period RSI pullback system: buy short-term oversold dips inside an established uptrend (Close\u003eSMA200), exit on the snap-back. ~75-80% historical win rates on equity indices with 1-3 day holds.",
+                           "rules":  "RSI(2) Wilder, SMA200 trend filter, SMA5 exit. Long: Close\u003eSMA200 AND RSI(2)\u003c10 (strongest \u003c5). Exit when Close\u003eSMA5 or RSI(2)\u003e65-70, stop on Close\u003cSMA200. Short mirror: Close\u003cSMA200 and RSI(2)\u003e95; cover on Close\u003cSMA5 or RSI(2)\u003c30. On-close execution, trend filter as risk control.",
+                           "parameters":  "rsi_period=2; oversold_arm=10, strong=5; overbought_arm=90, strong=95; trend_sma=200; exit_sma=5; rsi_exit_long=65; hold 1-5 days",
+                           "computeSignal":  "trend=+1 if Close\u003eSMA200 else -1. If trend==+1 and RSI2\u003c10: signal=+100*max(0,(10-RSI2)/10) (RSI2=5-\u003e+50, 0-\u003e+100). If trend==-1 and RSI2\u003e90: signal=-100*max(0,(RSI2-90)/10). Outside zones decay toward 0. On Close crossing above SMA5 drive toward 0 (exit). confidence=0.5+0.3*(RSI2\u003c5 or \u003e95)+0.2*(trend agreement); lower on crypto (fat tails).",
+                           "computeProjection":  "Expected 1-5 day return positive and proportional to oversold depth when in-trend; a short-horizon tactical tilt, not a long-run input. Use realized hold-period vol for sizing.",
+                           "sources":  [
+                                           "Connors \u0026 Alvarez, \u0027Short Term Trading Strategies That Work\u0027 (2009), RSI(2) chapter",
+                                           "StockCharts ChartSchool RSI(2) â€” https://chartschool.stockcharts.com/table-of-contents/trading-strategies-and-models/trading-strategies/rsi-2"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "connors-cumulative-rsi2",
+                           "name":  "Connors Cumulative RSI(2)",
+                           "category":  "mean-reversion",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "Connors \u0026 Alvarez refinement (ch. 9): sum the last X RSI(2) readings so a single noisy value cannot trigger; entries require multiple consecutive oversold days. ~88% reported accuracy on SPY (1993-2008) with ~3.7-day holds.",
+                           "rules":  "CumRSI = sum of last X RSI(2) (X=2 or 3). Trend filter Close\u003eSMA200. Long when CumRSI(X=2)\u003c35 (strong \u003c25). Exit when CumRSI\u003e65 or Close\u003eSMA5. Short mirror: Close\u003cSMA200 and CumRSI\u003e165 (X=2). On-close execution.",
+                           "parameters":  "rsi_period=2; cumulative X=2 (alt 3); long_entry_cum\u003c35; long_exit_cum\u003e65; trend_sma=200; exit_sma=5; hold ~3-5 days",
+                           "computeSignal":  "CumRSI=RSI2_t+RSI2_{t-1} (X=2). Long: if Close\u003eSMA200 and CumRSI\u003c35 -\u003e signal=+100*clamp((35-CumRSI)/35,0,1). Short: if Close\u003cSMA200 and CumRSI\u003e165 -\u003e signal=-100*clamp((CumRSI-165)/35,0,1). Else 0. confidence base 0.55 (multi-day confirmation), +0.25 if in strongest decile, +0.2 trend agreement.",
+                           "computeProjection":  "Short-horizon positive expectancy for 3-5 day holds in the in-trend oversold state; tactical overlay, not the long-run mean. Use realized hold-period vol for sizing.",
+                           "sources":  [
+                                           "Connors \u0026 Alvarez, \u0027Short Term Trading Strategies That Work\u0027 (2009), ch. 9 (Cumulative RSI)",
+                                           "Easycators â€” Cumulative RSI-2 â€” https://easycators.com/thinkscript/cumulative-rsi-2-trading-strategy/"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "williams-r",
+                           "name":  "Williams %R Reversion",
+                           "category":  "mean-reversion",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Larry Williams\u0027 %R bounded oscillator (0 to -100) shows where close sits in the recent high-low range. Mean-reversion: buy oversold (\u003c-80), sell overbought (\u003e-20), exit toward midline. Effectively an inverted Fast Stochastic %K.",
+                           "rules":  "%R=(HighestHigh(14)-Close)/(HighestHigh(14)-LowestLow(14))*-100. Oversold\u003c=-80, overbought\u003e=-20. Long when %R\u003c=-80 then turns up (crosses above -80); exit at -50 or -20. Short mirror. Add SMA200 trend filter (only buy oversold when Close\u003eSMA200) to avoid fighting strong downtrends.",
+                           "parameters":  "wr_period=14 (alt 10); oversold=-80; overbought=-20; exit_mid=-50; optional trend_sma=200",
+                           "computeSignal":  "Compute %R(14) from daily OHLC. score=(-50-%R)/50*100 (%R=-100 -\u003e +100 bullish, 0 -\u003e -100 bearish, -50 -\u003e 0). If Close\u003cSMA200 cap bullish at +40. Full conviction needs a turn-up from below -80. confidence=0.4+0.3*(|%R+50|/50)+0.2*(crossover turn confirmed)+0.1*(trend agreement); crypto -0.1.",
+                           "computeProjection":  "%R range position is a normalized stretch indicator; combine with ATR(14) to translate the snap toward midrange into a return/range estimate. Short-horizon tactical tilt.",
+                           "sources":  [
+                                           "Larry Williams (1979), \u0027How I Made One Million Dollars Last Year Trading Commodities\u0027",
+                                           "StockCharts ChartSchool â€” Williams %R"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "stochastic-oscillator",
+                           "name":  "Stochastic Oscillator (%K/%D) Reversion",
+                           "category":  "mean-reversion",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "George Lane\u0027s Stochastic measures close relative to the recent high-low range. Mean-reversion: buy when %K/%D cross up out of oversold (\u003c20), sell when they cross down out of overbought (\u003e80). Lane stressed crossovers and divergence over bare threshold touches.",
+                           "rules":  "Fast %K=(Close-LowestLow(14))/(HighestHigh(14)-LowestLow(14))*100; Slow %K=SMA(%K,3), %D=SMA(%K_slow,3) (14,3,3). Long: %K crosses above %D while both \u003c20; exit when %K\u003e80 or crosses below %D in overbought. Short mirror. Stronger with divergence; add SMA200 trend bias.",
+                           "parameters":  "k_period=14; k_smooth=3; d_period=3; oversold=20; overbought=80; optional trend_sma=200",
+                           "computeSignal":  "Slow %K, %D(14,3,3) from daily OHLC. score_level=(50-%K)/50*100 (%K=0 -\u003e +100, 100 -\u003e -100). Crossover boost: +15 if %K\u003e%D in oversold zone, -15 if %K\u003c%D in overbought. score=clamp(score_level+adj,-100,100), high conviction only in zone. Cap counter-trend at +-40. confidence=0.4+0.25*(in-zone extreme)+0.2*(crossover confirmed)+0.15*(trend agreement).",
+                           "computeProjection":  "Normalized range position; pair with ATR/realized vol to map the expected reversion move. Short-horizon swing tilt (3-10 day), informs tactical risk-on/off not long-run drift.",
+                           "sources":  [
+                                           "George C. Lane â€” Stochastic Oscillator (late 1950s)",
+                                           "StockCharts ChartSchool â€” Stochastic Oscillator (Fast/Slow/Full)"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "zscore-reversion",
+                           "name":  "Rolling Z-Score Mean Reversion",
+                           "category":  "mean-reversion",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Canonical statistical mean-reversion: standardize price by its rolling mean and stdev; enter when |z|\u003e~2 (price stretched), exit as z reverts toward 0. The engine behind Bollinger %B; the spread version underlies pairs trading. (Distinct from app\u0027s \u0027mean-reversion\u0027, which uses a fixed 60-day window with no actionable-band/autocorrelation gating.)",
+                           "rules":  "z_t=(Close_t-SMA(Close,N))/stdev(Close,N), N=20 (alt 50). Long when z\u003c=-2.0 (strong \u003c=-2.5); exit when z\u003e=0 or partial at -0.5. Short when z\u003e=+2.0; cover at 0. Half-life/time stop: exit if no reversion within ~2N days. Only |z|\u003e=2 is actionable.",
+                           "parameters":  "window N=20 (alt 50); entry_z=2.0; strong_z=2.5; exit_z=0.0; time_stop=2N days",
+                           "computeSignal":  "Rolling z of daily close (N=20). signal=clamp(-z/3*100,-100,100) (z=-2 -\u003e +66.7, -3 -\u003e +100, +2 -\u003e -66.7). Only treat |z|\u003e=2 as conviction; |z|\u003c1 noise. confidence=clamp(0.3+0.2*min(|z|/3,1)+0.2*reversion_quality,0,0.9), reversion_quality from negative lag-1 autocorrelation / measured half-life. Trending/positive-autocorr assets (some crypto) get LOWER confidence.",
+                           "computeProjection":  "z gives stdev-units of dislocation; expected reversion ~ z*rolling_stdev toward the mean. Rolling stdev is the position-sizing risk unit; AR(1) half-life sets the expected holding horizon.",
+                           "sources":  [
+                                           "Gatev, Goetzmann \u0026 Rouwenhorst (2006), \u0027Pairs Trading\u0027, Review of Financial Studies â€” https://doi.org/10.1093/rfs/hhj020",
+                                           "Ernest Chan, \u0027Algorithmic Trading\u0027 (Wiley, 2013) â€” z-score/half-life"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "keltner-reversion",
+                           "name":  "Keltner Channel Mean Reversion (ATR bands)",
+                           "category":  "mean-reversion",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Keltner Channels (Chester Keltner, 1960; Raschke/Colby refinements) plot ATR-based bands around an EMA. In range-bound markets, outer-band touches flag overshoots that revert to the middle EMA. Because bands use ATR not close-stdev, they pair with Bollinger to distinguish reversion vs breakout.",
+                           "rules":  "Middle=EMA20; band=ATR(10)*2.0; UpperKC=EMA20+2*ATR, LowerKC=EMA20-2*ATR. Long when Close\u003c=LowerKC and momentum stalls; exit at EMA20. Short at UpperKC; cover at EMA20. Squeeze guard: if Bollinger(20,2) is INSIDE the Keltner channel (TTM-squeeze), suppress reversion (breakout likely). Trend filter for longs (Close\u003eSMA200).",
+                           "parameters":  "ema_period=20; atr_period=10 (alt 14); atr_mult=2.0 (alt 1.5-3.0); exit=EMA20; squeeze guard=BB(20,2) inside KC(20,2*ATR)",
+                           "computeSignal":  "EMA20, ATR(10) from daily OHLC; p=(Close-EMA20)/(2*ATR) (~-1 at lower band, +1 at upper). score=clamp(-p*100,-100,100). Squeeze guard: if BB width\u003cKC width scale score by 0.3 and flag breakout regime. Trend gate caps counter-trend at +-40. confidence=0.4+0.3*min(|p|,1.5)/1.5+0.2*(1-squeeze_flag)+0.1*(trend agreement).",
+                           "computeProjection":  "ATR-scaled distance from the EMA is a vol-normalized dislocation; expected reversion ~(EMA20-Close) with risk=ATR. Squeeze flag flips the projection from reversion to breakout-vol expansion.",
+                           "sources":  [
+                                           "Chester W. Keltner (1960), \u0027How To Make Money in Commodities\u0027",
+                                           "StockCharts ChartSchool â€” Keltner Channels"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "cci-reversion",
+                           "name":  "Commodity Channel Index (CCI) Reversion",
+                           "category":  "mean-reversion",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Donald Lambert\u0027s CCI (1980) measures how far typical price is from its MA in mean-deviation units, scaled so ~70-80% of values fall within +-100. Reversion variant: fade readings beyond +-100, targeting a return toward 0.",
+                           "rules":  "TP=(High+Low+Close)/3; CCI=(TP-SMA(TP,20))/(0.015*MeanDeviation(TP,20)). Above +100 overbought, below -100 oversold. Long when CCI\u003c-100 then turns up (crosses above -100); exit at 0/+100. Short when CCI\u003e+100 then turns down; cover at 0. Extreme bands +-200 for stronger entries. SMA200 trend filter to avoid fading strong trends.",
+                           "parameters":  "cci_period=20; constant=0.015; oversold=-100 (strong -200); overbought=+100 (strong +200); exit=0; optional trend_sma=200",
+                           "computeSignal":  "CCI(20) from daily OHLC typical price. score=clamp(-CCI/200*100,-100,100) (CCI=-200 -\u003e +100, -100 -\u003e +50, +200 -\u003e -100). High conviction only |CCI|\u003e100; require a cross-back through +-100 for full score else 60%. Trend gate caps counter-trend at +-40. confidence=0.4+0.3*min(|CCI|/200,1)+0.2*(cross-back confirmed)+0.1*(trend agreement); crypto -0.1.",
+                           "computeProjection":  "CCI is normalized stretch in mean-deviation units; expected reversion ~CCI*0.015*MeanDeviation back toward the SMA(TP). MeanDeviation/ATR sizes risk. Short-horizon tactical tilt.",
+                           "sources":  [
+                                           "Donald R. Lambert (1980), \u0027Commodity Channel Index\u0027, Commodities Magazine",
+                                           "StockCharts ChartSchool â€” CCI"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "bollinger-squeeze",
+                           "name":  "Bollinger Band Squeeze (Volatility Breakout)",
+                           "category":  "technical",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Bollinger\u0027s \u0027The Squeeze\u0027: BandWidth contracting to a multi-month low signals a low-volatility coil that precedes high-volatility expansion (\u0027low vol begets high vol\u0027). The first band break after a squeeze signals direction; beware the \u0027head fake\u0027.",
+                           "rules":  "BandWidth=(UpperBB-LowerBB)/MiddleBB using SMA(20),2 std. Squeeze=BandWidth at/near its 125-day (6-month) low. Breakout long when, in/just after a squeeze, Close\u003eUpperBB on rising volume; short when Close\u003cLowerBB. Head-fake guard: if a break reverses back inside within a few bars, trade the opposite direction. Exit via opposite/middle band.",
+                           "parameters":  "bb_period=20; bb_stdev_mult=2.0; bandwidth_lookback=125; squeeze=BandWidth\u003c=20th percentile; breakout=close beyond band + volume\u003e1.5x avg(20)",
+                           "computeSignal":  "BandWidth and its 125-day percentile. squeeze_strength=1-percentile(BandWidth). signal=+100*squeeze_strength when Close\u003eUpperBB; -100*squeeze_strength when Close\u003cLowerBB; in squeeze with no break -\u003e 0 (flag \u0027armed\u0027). Multiply by min(1,vol/(1.5*avgvol20)). Head-fake: reverse within 3 bars -\u003e opposite sign at 60% magnitude. confidence=0.4+0.3*squeeze_strength+0.2*volume_confirm+0.1*(break aligns with SMA200).",
+                           "computeProjection":  "Squeeze identifies low-realized-vol -\u003e projected vol expansion (widen risk bands once a break occurs). Use ATR(14) at the break for stop distance and expected-move sizing; expected move often \u003e= prior squeeze BandWidth.",
+                           "sources":  [
+                                           "John Bollinger (2001), \u0027Bollinger on Bollinger Bands\u0027 â€” The Squeeze \u0026 Volatility Breakout Method I",
+                                           "StockCharts ChartSchool â€” Bollinger Band Squeeze"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "all-weather-risk-parity",
+                           "name":  "Ray Dalio All-Weather (Risk Parity)",
+                           "category":  "allocation",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Bridgewater\u0027s strategic allocation balancing risk (not dollars) across economic \u0027seasons\u0027. Retail version ~30% stocks, 40% long Treasuries, 15% intermediate Treasuries, 7.5% gold, 7.5% commodities â€” the heavy bond weight equalizes risk contributions since bonds are ~1/3 as volatile as equities.",
+                           "rules":  "Map the universe to All-Weather buckets: 30% growth (equities+SPY/QQQ), 40% long-bond proxy, 15% intermediate-bond proxy, 7.5% GLD, 7.5% commodity/crypto. No bond ETF here: use risk-free/cash as the bond proxy (flag low confidence on bond legs). Rebalance when any sleeve drifts \u003e5% absolute or annually. Signal is over/underweight vs target.",
+                           "parameters":  "weights 30/40/15/7.5/7.5; bond sleeve proxied by risk-free/cash; rebalance \u003e5% drift or annual; vols from 5y daily returns annualized",
+                           "computeSignal":  "Allocation overlay: score=clamp(100*(target_weight-current_weight)/target_weight,-100,100) (under-target=positive/accumulate, over=trim). Assets not in a bucket -\u003e 0. confidence=0.7 for SPY/QQQ/GLD legs, 0.4 for the bond sleeve (proxied), 0.2 for unmapped names.",
+                           "computeProjection":  "Blend each sleeve\u0027s long-run risk premium (equities\u003ecommodities/gold\u003ebonds\u003ecash); portfolio vol from the covariance of sleeve daily returns; All-Weather targets ~10-12% vol with shallower drawdowns than 60/40 in inflation/deflation shocks.",
+                           "sources":  [
+                                           "Ray Dalio / Bridgewater â€” All-Weather principles",
+                                           "Tony Robbins, \u0027Money: Master the Game\u0027 (2014) â€” retail All-Weather weights"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "risk-parity-inverse-vol",
+                           "name":  "Risk Parity / Inverse-Volatility Weighting",
+                           "category":  "allocation",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Equalize each asset\u0027s risk contribution by weighting inversely to volatility (naive risk parity), so low-vol assets get more capital and high-vol assets less. Maillard, Roncalli \u0026 Teiletche (2010); the diversification engine behind All-Weather.",
+                           "rules":  "w_i proportional to 1/sigma_i, normalized to sum 1 (naive risk parity). Full risk parity solves for equal marginal risk contributions via the covariance matrix. Rebalance monthly/quarterly. Lower-vol assets earn higher weight; the \u0027signal\u0027 per asset is its inverse-vol weight vs equal-weight.",
+                           "parameters":  "sigma_i=annualized stdev of daily log returns (252); w_i ~ (1/sigma_i)/sum(1/sigma_j); rebalance monthly/quarterly",
+                           "computeSignal":  "sigma_i=sqrt(252)*std(daily log returns). iv_w=(1/sigma_i)/sum over universe; eq_w=1/N. score=clamp(100*(iv_w-eq_w)/eq_w,-100,100) (low-vol assets above equal-weight -\u003e positive/accumulate, high-vol -\u003e negative/trim). confidence=clamp(0.5+0.3*min(1,history_days/252),0,0.85); a pure risk-allocation overlay, not a return forecast.",
+                           "computeProjection":  "No drift claim per asset; portfolio vol from the inverse-vol-weighted covariance is lower and more stable than equal- or cap-weight. Use realized sigma as the forward vol input; expect smoother drawdowns.",
+                           "sources":  [
+                                           "Maillard, Roncalli \u0026 Teiletche (2010), \u0027The Properties of Equally Weighted Risk Contribution Portfolios\u0027, Journal of Portfolio Management",
+                                           "Qian (2005), \u0027Risk Parity Portfolios\u0027, PanAgora"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "min-variance",
+                           "name":  "Minimum-Variance Portfolio",
+                           "category":  "allocation",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Solve for the portfolio with the lowest total variance regardless of expected return (the leftmost point of the efficient frontier). The minimum-variance and low-volatility anomaly portfolios have historically delivered high risk-adjusted returns. Clarke, de Silva \u0026 Thorley (2006).",
+                           "rules":  "Minimize w\u0027Sigma w subject to sum(w)=1 (long-only adds w\u003e=0), using the covariance matrix of daily returns over the 24-asset universe. Low-beta, low-vol, low-correlation assets get the highest weights. Rebalance monthly/quarterly. Per-asset signal is its min-variance weight vs equal-weight.",
+                           "parameters":  "Sigma=sample covariance of daily returns (shrinkage recommended, Ledoit-Wolf); long-only w\u003e=0, sum(w)=1; rebalance monthly/quarterly",
+                           "computeSignal":  "Estimate Sigma (Ledoit-Wolf shrinkage on daily returns). Solve min-variance weights w*. score=clamp(100*(w*_i-eq_w)/eq_w,-100,100) (above equal-weight -\u003e accumulate, near-zero weight -\u003e avoid). Proxy when full optimizer unavailable: rank by combined low beta + low vol + low average correlation. confidence=clamp(0.45+0.3*min(1,history_days/252),0,0.8); estimation error in Sigma caps confidence.",
+                           "computeProjection":  "Captures the low-volatility anomaly: minimum-variance names project competitive returns at materially lower vol and drawdown. Use the optimized portfolio variance as the forward risk input.",
+                           "sources":  [
+                                           "Clarke, de Silva \u0026 Thorley (2006), \u0027Minimum-Variance Portfolios in the US Equity Market\u0027, Journal of Portfolio Management",
+                                           "Ledoit \u0026 Wolf (2004), \u0027Honey, I Shrunk the Sample Covariance Matrix\u0027"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "low-vol-anomaly",
+                           "name":  "Low-Volatility Anomaly",
+                           "category":  "anomaly",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Low-volatility (and low-beta) stocks have historically earned higher risk-adjusted â€” and often higher absolute â€” returns than high-volatility stocks, contradicting CAPM. Ang, Hodrick, Xing \u0026 Zhang (2006); Baker, Bradley \u0026 Wurgler (2011).",
+                           "rules":  "Rank the universe by trailing realized volatility (or beta). Long the lowest-vol tertile/quintile, avoid the highest. The premium is strongest cross-sectionally. Rebalance monthly/quarterly. Often combined with a quality overlay to avoid value traps.",
+                           "parameters":  "metric=trailing 252-day annualized vol (or beta from factor series); long lowest tertile, avoid highest; rebalance monthly/quarterly",
+                           "computeSignal":  "sigma_i=sqrt(252)*std(daily log returns) over ~252 days. Percentile-rank across the universe (low vol = high rank). score=clip((low_vol_pct-50)*2,-100,100) i.e. lowest-vol -\u003e +100, highest -\u003e -100. Optionally blend with beta percentile. confidence=clamp(0.5+0.3*min(1,history_days/252),0,0.8).",
+                           "computeProjection":  "Low-vol names project competitive expected returns with lower drawdown; tilt the risk estimate down for low-vol names and up for high-vol names. The anomaly is a risk-reducer that historically did not sacrifice return.",
+                           "sources":  [
+                                           "Ang, Hodrick, Xing \u0026 Zhang (2006), \u0027The Cross-Section of Volatility and Expected Returns\u0027, Journal of Finance 61(1)",
+                                           "Baker, Bradley \u0026 Wurgler (2011), \u0027Benchmarks as Limits to Arbitrage\u0027, Financial Analysts Journal"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "betting-against-beta",
+                           "name":  "Betting Against Beta (BAB)",
+                           "category":  "factor",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Frazzini \u0026 Pedersen (2014): low-beta assets earn higher risk-adjusted returns than high-beta assets because leverage-constrained investors bid up high-beta. BAB goes long (leveraged) low-beta and short (de-leveraged) high-beta, beta-neutral.",
+                           "rules":  "Rank the universe by beta (supplied per asset, or estimated vs the market factor). Long low-beta, short high-beta, scaling each leg to beta-1 (long leg levered up, short leg levered down) so the spread is beta-neutral. Rebalance monthly. The signal per asset is its beta rank â€” low beta bullish.",
+                           "parameters":  "beta from supplied per-asset beta (or regress returns on market factor); long low-beta, short high-beta; lever each leg to beta=1; rebalance monthly",
+                           "computeSignal":  "Use the asset\u0027s beta (or estimate via regression on the market factor). Cross-sectionally rank beta; low beta = bullish. score=clip((low_beta_pct-50)*2,-100,100) where low_beta_pct=1-percentile(beta). Equivalent: score=clip(-(beta-universe_median_beta)/universe_beta_std*40,-100,100). confidence=clamp(0.5+0.3*min(1,history_days/252),0,0.8); higher when beta is well-estimated (long history, high R^2).",
+                           "computeProjection":  "Low-beta names project a positive risk-adjusted tilt and lower systematic risk; use the lower beta directly to reduce projected market-driven variance. The BAB premium is the long-low/short-high spread.",
+                           "sources":  [
+                                           "Frazzini \u0026 Pedersen (2014), \u0027Betting Against Beta\u0027, Journal of Financial Economics 111(1):1-25 â€” https://www.aqr.com/Insights/Research/Journal-Article/Betting-Against-Beta"
+                                       ],
+                           "priority":  1
+                       },
+                       {
+                           "id":  "permanent-portfolio",
+                           "name":  "Harry Browne Permanent Portfolio",
+                           "category":  "allocation",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Harry Browne\u0027s Permanent Portfolio: 25% stocks, 25% long-term bonds, 25% cash, 25% gold â€” one asset thrives in each economic regime (prosperity, deflation, recession, inflation). Simple, robust, low-drawdown buy-and-hold-and-rebalance.",
+                           "rules":  "Equal 25% to four sleeves: stocks (SPY/QQQ/equities), long bonds (proxy via risk-free/cash duration â€” flag proxy), cash (risk-free), gold (GLD). Rebalance back to 25% each when any sleeve drifts outside a 15-35% band, or annually. Static target; per-asset signal is over/underweight vs the 25% target within its sleeve.",
+                           "parameters":  "weights 25/25/25/25 (stocks/long bonds/cash/gold); rebalance band 15-35% or annual; bond sleeve proxied by cash/risk-free (flag)",
+                           "computeSignal":  "Allocation overlay: score=clamp(100*(target_weight-current_weight)/target_weight,-100,100) within each mapped sleeve (under -\u003e accumulate, over -\u003e trim). SPY/QQQ map to stocks, GLD to gold, cash/risk-free to cash+bond sleeves. Unmapped names -\u003e 0. confidence=0.7 for stock/gold/cash legs that map cleanly, 0.4 for the long-bond proxy, 0.2 for unmapped.",
+                           "computeProjection":  "Blend the four sleeves\u0027 long-run premia; portfolio vol from sleeve covariance is low (gold/bonds/cash diversify equities). Historically ~half the drawdown of all-equity with steady real returns.",
+                           "sources":  [
+                                           "Harry Browne, \u0027Fail-Safe Investing\u0027 (1999)",
+                                           "Craig Rowland \u0026 J.M. Lawson, \u0027The Permanent Portfolio\u0027 (Wiley, 2012)"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "vol-target",
+                           "name":  "Volatility Targeting",
+                           "category":  "allocation",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Scale exposure inversely to forecast volatility to hold portfolio risk at a constant target, lowering exposure when vol spikes and raising it when calm. Improves risk-adjusted returns and curbs drawdowns since vol is persistent and clusters before crashes (Moreira \u0026 Muir, 2017).",
+                           "rules":  "position weight = target_vol / forecast_vol, capped at a max leverage. forecast_vol from EWMA/GARCH of daily returns. As realized/forecast vol rises, cut exposure; as it falls, add. Rebalance daily/weekly. Per-asset signal compares current vol regime to its own long-run average.",
+                           "parameters":  "target_vol=10-15% annualized; forecast_vol=EWMA(delta=0.94) or GARCH(1,1); max leverage cap (e.g. 1.5-2x); rebalance daily/weekly",
+                           "computeSignal":  "forecast_vol=sqrt(252*EWMA(r_daily^2,0.94)) (or GARCH(1,1)). long_run_vol=annualized stdev over full history. ratio=long_run_vol/forecast_vol (\u003e1 calm = scale up, \u003c1 stressed = scale down). score=clip((ratio-1)*100,-100,100) (calm regime mildly bullish on a risk-adjusted basis, vol spike bearish). confidence=clamp(0.4+0.3*min(1,history_days/252),0,0.8).",
+                           "computeProjection":  "Primary use is sizing: target_weight=target_vol/forecast_vol. Project the asset\u0027s drift unchanged but set forward vol to the targeted level; vol targeting compresses tail risk and stabilizes the Sharpe across regimes.",
+                           "sources":  [
+                                           "Moreira \u0026 Muir (2017), \u0027Volatility-Managed Portfolios\u0027, Journal of Finance 72(4)",
+                                           "Harvey et al. (2018), \u0027The Impact of Volatility Targeting\u0027, Journal of Portfolio Management"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "seasonality",
+                           "name":  "Calendar Seasonality (Sell-in-May / Halloween + TOM)",
+                           "category":  "anomaly",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf"
+                                            ],
+                           "summary":  "Well-documented calendar effects: the Halloween / \u0027Sell in May\u0027 indicator (Nov-Apr returns historically far exceed May-Oct) and the turn-of-month effect (returns cluster around the last/first few trading days). Bouman \u0026 Jacobsen (2002); Ariel (1987).",
+                           "rules":  "Halloween: overweight equities Nov-Apr, underweight/defensive May-Oct. Turn-of-month: tilt long in the window from the last trading day of the month through the first ~3 trading days of the next month. Combine: strongest bullish when in the Nov-Apr window AND in the turn-of-month window. Derive month/day from the daily price series dates.",
+                           "parameters":  "Halloween window = Nov 1 - Apr 30 (favorable); TOM window = last trading day + first 3 trading days; effects are universe-wide (apply to equities/ETFs)",
+                           "computeSignal":  "From the date of the latest bar: halloween_score=+40 if month in {Nov..Apr} else -40. tom_score=+40 if within the turn-of-month window (last trading day or first 3 of the month) else 0. score=clamp(halloween_score+tom_score,-100,100). Scale magnitude by the asset\u0027s historical realized seasonal edge if estimable from the 5y series. confidence=0.35-0.5 (calendar effects are real but modest and time-varying); higher when both windows align.",
+                           "computeProjection":  "Add a small additive seasonal drift to expected return for the favorable window (Nov-Apr / turn-of-month) and a small subtraction in the unfavorable window; the effect is a low-magnitude timing tilt, neutral on vol.",
+                           "sources":  [
+                                           "Bouman \u0026 Jacobsen (2002), \u0027The Halloween Indicator, Sell in May and Go Away\u0027, American Economic Review 92(5)",
+                                           "Ariel (1987), \u0027A Monthly Effect in Stock Returns\u0027, Journal of Financial Economics"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "pairs-trading",
+                           "name":  "Pairs Trading (Statistical Arbitrage)",
+                           "category":  "mean-reversion",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Market-neutral relative-value: find two historically co-moving assets, trade the spread when it diverges (short the rich, long the cheap), exit when it converges. Gatev, Goetzmann \u0026 Rouwenhorst (2006) document persistent profits.",
+                           "rules":  "For a candidate pair (A,B): estimate hedge ratio beta via rolling regression of log(A) on log(B); spread=log(A)-beta*log(B). z-score the spread. Enter when z\u003e=+2 (short A/long B) or z\u003c=-2 (long A/short B); exit at z~0. Require the pair to be cointegrated/correlated on the 5y daily series (e.g. correlation\u003e0.8, ADF on spread). Time-stop if no convergence within ~2N days.",
+                           "parameters":  "hedge ratio=rolling OLS log(A)~log(B); spread z-window N=20-60; entry_z=2.0; exit_z=0.0; pair filter correlation\u003e0.8 / cointegrated; time_stop=2N",
+                           "computeSignal":  "Per asset, find its best-correlated partner in the universe; build spread=log(price_self)-beta*log(price_partner); z=spread z-score over N. signal for the self-asset=clamp(-z/2.5*100,-100,100) (self cheap relative to partner, z\u003c=-2 -\u003e bullish on self). confidence=clamp(0.3+0.3*pair_correlation+0.2*min(|z|/2.5,1),0,0.85); zero confidence if no partner with correlation\u003e0.7 (no tradable pair).",
+                           "computeProjection":  "Market-neutral: project the spread reverting to zero, so expected self-return ~ -z*spread_stdev relative to the partner; portfolio-level vol is low (hedged). Half-life of the spread sets the holding horizon.",
+                           "sources":  [
+                                           "Gatev, Goetzmann \u0026 Rouwenhorst (2006), \u0027Pairs Trading: Performance of a Relative-Value Arbitrage Rule\u0027, Review of Financial Studies â€” https://doi.org/10.1093/rfs/hhj020",
+                                           "Ernest Chan, \u0027Algorithmic Trading\u0027 (Wiley, 2013)"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "ichimoku",
+                           "name":  "Ichimoku Kinko Hyo (Cloud)",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Goichi Hosoda\u0027s all-in-one trend system: Tenkan/Kijun lines, a forward-projected Kumo (cloud) of leading spans, and the lagging Chikou span give trend, support/resistance, and momentum from one chart. Price above the cloud is bullish, below is bearish.",
+                           "rules":  "Tenkan=(9-period high+low)/2; Kijun=(26-period high+low)/2; SpanA=(Tenkan+Kijun)/2 plotted 26 ahead; SpanB=(52-period high+low)/2 plotted 26 ahead; Chikou=close plotted 26 back. Bullish: price\u003ecloud, Tenkan\u003eKijun, SpanA\u003eSpanB (green cloud), Chikou above price 26 bars ago. Bearish: the mirror. Entry on a Tenkan/Kijun cross confirmed by cloud position.",
+                           "parameters":  "Tenkan=9, Kijun=26, SpanB=52, displacement=26 (uses daily high/low/close)",
+                           "computeSignal":  "Compute the five lines from daily OHLC. Component votes: +1 each for price\u003ecloud, Tenkan\u003eKijun, SpanA\u003eSpanB, close\u003eclose[26] (Chikou); -1 each for the bearish mirror. raw=sum/4 in [-1,1]. Cloud-distance strength W=clip((close-cloud_mid)/(cloud_thickness or price*0.05),-1,1). score=clamp(raw*(0.6+0.4*|W|)*100,-100,100). confidence=clamp(0.4+0.3*|raw|+0.2*min(cloud_thickness/(price*0.03),1),0.4,0.9); higher with thicker cloud and full alignment.",
+                           "computeProjection":  "Project trend continuation in the cloud direction; the cloud edges are projected support/resistance and stop levels. Thicker cloud = stronger expected continuation and wider support buffer; thin cloud = weaker, more reversal-prone.",
+                           "sources":  [
+                                           "Goichi Hosoda â€” Ichimoku Kinko Hyo",
+                                           "StockCharts ChartSchool â€” Ichimoku Cloud â€” https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/ichimoku-cloud"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "adx-trend-strength",
+                           "name":  "ADX Trend-Strength Filter (Wilder DMI)",
+                           "category":  "trend",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Wilder\u0027s Average Directional Index measures trend STRENGTH (not direction); +DI/-DI give direction. ADX\u003e25 confirms a trend worth following, ADX\u003c20 flags a choppy range where trend signals fail and reversion works. A regime gauge that gates other strategies.",
+                           "rules":  "Compute +DM/-DM, TR, then +DI=100*EMA(+DM)/ATR, -DI=100*EMA(-DM)/ATR, DX=100*|+DI - -DI|/(+DI + -DI), ADX=Wilder-smoothed DX (period 14). Direction: bullish when +DI\u003e-DI, bearish when -DI\u003e+DI. Strength: only act on trend signals when ADX\u003e25; treat ADX\u003c20 as range (favor mean-reversion). Rising ADX = strengthening trend.",
+                           "parameters":  "period=14 (Wilder); trend threshold ADX\u003e25; range threshold ADX\u003c20; +DI/-DI for direction",
+                           "computeSignal":  "Compute ADX(14), +DI, -DI from daily OHLC. direction=sign(+DI - -DI). strength=clip((ADX-20)/30,0,1) (ADX=20 -\u003e 0, 50 -\u003e 1). score=clamp(direction*strength*100,-100,100) (strong directional trend -\u003e strong signed score; weak ADX -\u003e near 0). confidence=clamp(0.4+0.4*strength+0.1*(rising ADX?1:0),0.4,0.9).",
+                           "computeProjection":  "ADX is best used as a regime multiplier on other strategies: scale trend-strategy expected returns by strength and mean-reversion strategies by (1-strength). High ADX projects trend continuation; low ADX projects range-bound chop.",
+                           "sources":  [
+                                           "J. Welles Wilder (1978), \u0027New Concepts in Technical Trading Systems\u0027 â€” ADX/DMI",
+                                           "StockCharts ChartSchool â€” ADX/DMI"
+                                       ],
+                           "priority":  2
+                       },
+                       {
+                           "id":  "obv-volume-trend",
+                           "name":  "On-Balance Volume Trend Confirmation",
+                           "category":  "technical",
+                           "assetClasses":  [
+                                                "equity",
+                                                "etf",
+                                                "crypto"
+                                            ],
+                           "summary":  "Joe Granville\u0027s On-Balance Volume cumulates signed volume (add volume on up days, subtract on down days) to confirm price trends and spot divergences: OBV making new highs with price confirms the trend; OBV diverging warns of a reversal.",
+                           "rules":  "OBV_t = OBV_{t-1} + volume if close\u003eprevClose, - volume if close\u003cprevClose, else unchanged. Confirmation: rising OBV with rising price = healthy uptrend (bullish); falling OBV with rising price = bearish divergence (distribution). Use the OBV slope and OBV vs its own moving average; a bullish OBV breakout often leads price.",
+                           "parameters":  "OBV cumulative signed volume; trend via OBV slope over ~20-50 days or OBV vs its 20-day EMA; divergence vs price over the same window",
+                           "computeSignal":  "Build OBV from daily close+volume. obv_slope=normalized slope of OBV over last ~20 days (e.g. (OBV-OBV[-20])/mean|OBV change|). price_slope=(close/close[-20]-1). Agreement: score=clamp(sign(obv_slope)*min(|obv_slope_z|,2.5)*40,-100,100); apply a divergence penalty: if sign(obv_slope)!=sign(price_slope), halve magnitude and flag divergence. confidence=clamp(0.35+0.3*min(|obv_slope_z|/2.5,1)+0.2*(agreement?1:0),0,0.85). Requires volume (available in OHLCV).",
+                           "computeProjection":  "OBV confirms or questions the price trend rather than forecasting magnitude: when OBV agrees, raise confidence in the price-trend projection; on bearish divergence, widen downside risk and shorten the expected trend horizon.",
+                           "sources":  [
+                                           "Joseph Granville (1963), \u0027Granville\u0027s New Key to Stock Market Profits\u0027 â€” OBV",
+                                           "StockCharts ChartSchool â€” On Balance Volume (OBV)"
+                                       ],
+                           "priority":  3
+                       },
+                       {
+                           "id":  "gordon-reverse-implied-growth",
+                           "name":  "Reverse-Engineered Implied Growth (DCF/DDM)",
+                           "category":  "value",
+                           "assetClasses":  [
+                                                "equity"
+                                            ],
+                           "summary":  "Invert the valuation model: instead of computing fair value from an assumed growth rate, solve for the growth rate the current price implies and compare it to the firm\u0027s achievable growth. A market-implied growth far above what fundamentals support is bearish; well below is bullish (margin of safety).",
+                           "rules":  "From the Gordon/earnings-yield identity, implied_growth = required_return - (cash_flow_per_share/price). Use fcf_per_share (or eps) as the per-share cash flow, required_return from CAPM (rf + beta*premium). Compare implied_growth to a sustainable-growth ceiling g_sustainable = ROE*(1-payout) (or capped revenue_growth). Bullish when implied_growth \u003c\u003c g_sustainable (market underpricing growth); bearish when implied_growth \u003e\u003e g_sustainable (priced for unrealistic growth).",
+                           "parameters":  "required_return=CAPM (rf+beta*premium), clamped 0.05-0.20; cash flow=fcf_per_share (fallback eps); g_sustainable=ROE*(1-payout) capped at revenue_growth+5%",
+                           "computeSignal":  "req=clamp(rf+beta*premium,0.05,0.20); cf=fcf_per_share\u003e0?fcf_per_share:eps. If cf\u003c=0 or price\u003c=0 -\u003e score 0, conf 0.15. implied_g=req-cf/price. g_sust=clamp((eps/bvps)*(1-clamp(dividend/eps,0,1)),-0.05,0.30). gap=g_sust-implied_g. score=clamp(squash(gap,scale=0.05),-100,100) (market implies far less growth than achievable -\u003e bullish). confidence=0.45 (single-snapshot growth estimate), up to 0.6 when fcf and bvps clean. Crypto/ETF N/A.",
+                           "computeProjection":  "The gap between sustainable and implied growth is a margin-of-safety proxy: feed it into expected mean-reversion of valuation toward fair multiples; pairs naturally with the existing DCF/DDM models as a cross-check.",
+                           "sources":  [
+                                           "Mauboussin \u0026 Rappaport, \u0027Expectations Investing\u0027 (2001) â€” market-implied expectations",
+                                           "Gordon (1959) growth model inverted; Damodaran on implied growth"
+                                       ],
+                           "priority":  3
+                       }
+                   ],
+    "projectionMethods":  [
+                              {
+                                  "name":  "Regime-Aware Drift Blending",
+                                  "summary":  "Replace a single historical mean drift with a drift that depends on the current market regime (bull/bear/high-vol/low-vol), detected from trend filters and volatility state, so the expected-return input adapts instead of averaging across opposite regimes.",
+                                  "howToApply":  "Classify the current regime per asset and for SPY: (a) trend state from the 200-day SMA (price\u003eSMA200 = bull, below = bear) and the golden/death-cross spread; (b) vol state from EWMA/GARCH vol vs its long-run average. Maintain a small drift estimate conditional on regime (e.g. mean daily log return computed only over historical days in the same regime, or a Markov-switching two-state mean). Final drift = regime-conditional mean, shrunk toward the unconditional mean by sample size. Feed this drift into the GBM/horizon projection instead of the flat mean.",
+                                  "sources":  [
+                                                  "Hamilton (1989), \u0027A New Approach to the Economic Analysis of Nonstationary Time Series\u0027, Econometrica (Markov regime-switching)",
+                                                  "Ang \u0026 Bekaert (2002), \u0027Regime Switches in Interest Rates\u0027"
+                                              ]
+                              },
+                              {
+                                  "name":  "GARCH(1,1) Conditional Volatility for Forward Vol",
+                                  "summary":  "Use the GARCH(1,1) conditional-volatility forecast (already implemented in the app) as the forward sigma in every projection, rather than trailing realized stdev, so confidence intervals widen ahead of clustered-volatility episodes and tighten in calm regimes.",
+                                  "howToApply":  "Fit GARCH(1,1) on daily returns; forecast h-step-ahead variance and annualize. Use this forecast_vol as the sigma in Monte Carlo paths and in analytic horizon bands. For multi-horizon projections, iterate the GARCH variance recursion forward to each horizon (vol mean-reverts toward the long-run level omega/(1-alpha-beta)). Blend with EWMA(delta=0.94) as a robustness check when the GARCH fit is unstable (alpha+beta\u003e=1).",
+                                  "sources":  [
+                                                  "Bollerslev (1986), \u0027Generalized Autoregressive Conditional Heteroskedasticity\u0027, Journal of Econometrics",
+                                                  "JP Morgan RiskMetrics (1996) â€” EWMA"
+                                              ]
+                              },
+                              {
+                                  "name":  "Ensemble Blending of Strategy Drifts",
+                                  "summary":  "Combine the per-strategy expected-return implications into one blended drift using confidence-weighted (and optionally category-diversified) averaging, so no single model dominates and offsetting signals net out â€” a model-averaging approach that reduces forecast variance.",
+                                  "howToApply":  "For each strategy that emits a forward drift, weight its drift contribution by its confidence times a category weight (cap any one family so e.g. the many trend models don\u0027t swamp value/quality). Compute blended_drift = sum(w_i * drift_i)/sum(w_i). Optionally shrink the blend toward the CAPM/factor-implied drift (a sensible prior). Track the historical hit-rate of each strategy and let weights adapt (Bayesian/exponential-weights model averaging).",
+                                  "sources":  [
+                                                  "Bates \u0026 Granger (1969), \u0027The Combination of Forecasts\u0027",
+                                                  "Timmermann (2006), \u0027Forecast Combinations\u0027, Handbook of Economic Forecasting"
+                                              ]
+                              },
+                              {
+                                  "name":  "Bull/Base/Bear Scenario Fan",
+                                  "summary":  "Project three explicit scenarios per horizon â€” bear (e.g. 10th-percentile drift), base (blended drift), bull (90th-percentile drift) â€” instead of a single point, giving users an interpretable range and the engine a structured way to express uncertainty.",
+                                  "howToApply":  "For each horizon, set base = blended regime-aware drift. Derive bear/bull by shifting the drift by +-k*forecast_vol/sqrt(horizon) (k chosen for the 10/90 percentiles, ~1.28 for a normal, larger for fat tails) or by taking the 10th/50th/90th percentile of the Monte Carlo terminal distribution. Report the three terminal prices/returns and attach probabilities (e.g. 25/50/25). Scenario weights can themselves be regime-conditional (higher bear weight in a death-cross regime).",
+                                  "sources":  [
+                                                  "Damodaran, \u0027Investment Valuation\u0027 â€” scenario analysis",
+                                                  "CFA Institute curriculum â€” scenario and sensitivity analysis"
+                                              ]
+                              },
+                              {
+                                  "name":  "Fat-Tailed / Bootstrapped Confidence Intervals",
+                                  "summary":  "Build horizon confidence intervals from a Student-t or block-bootstrap of historical returns rather than a Gaussian, so the bands reflect the heavy tails and autocorrelation observed in real (especially crypto) return series.",
+                                  "howToApply":  "Option A (parametric fat tails): fit a Student-t to daily returns (estimate degrees of freedom ~4-8), simulate Monte Carlo paths with t-distributed shocks scaled to the GARCH vol. Option B (nonparametric): block-bootstrap historical daily returns (block length ~10-20 days to preserve autocorrelation/vol clustering), compound to each horizon, and read the empirical 5/25/75/95 percentiles. Use the bootstrap percentiles directly as the projection bands; they need no distributional assumption.",
+                                  "sources":  [
+                                                  "Politis \u0026 Romano (1994), \u0027The Stationary Bootstrap\u0027, JASA",
+                                                  "Cont (2001), \u0027Empirical Properties of Asset Returns: Stylized Facts\u0027, Quantitative Finance"
+                                              ]
+                              },
+                              {
+                                  "name":  "Expected Shortfall (CVaR) Downside Projection",
+                                  "summary":  "Report expected shortfall (mean loss beyond the VaR threshold) alongside each horizon projection so the downside is characterized by the average tail loss, not just a single quantile â€” more coherent and more conservative than VaR.",
+                                  "howToApply":  "From the Monte Carlo terminal distribution (or bootstrap) at each horizon, compute VaR_95 = -5th percentile of returns and ES_95 = -mean of returns below the 5th percentile. Attach ES to the bear scenario and to the risk score. For sizing, prefer ES over VaR (it is sub-additive/coherent). Annualize or horizon-scale consistently with the projection horizon. Cross-check against the existing historical VaR/CVaR model.",
+                                  "sources":  [
+                                                  "Artzner, Delbaen, Eber \u0026 Heath (1999), \u0027Coherent Measures of Risk\u0027, Mathematical Finance",
+                                                  "Rockafellar \u0026 Uryasev (2000), \u0027Optimization of Conditional Value-at-Risk\u0027, Journal of Risk"
+                                              ]
+                              },
+                              {
+                                  "name":  "Volatility-Scaled (Risk-Targeted) Expected Returns",
+                                  "summary":  "Express and size each projection at a constant target volatility by scaling the position to target_vol/forecast_vol, so expected returns are comparable across assets and the portfolio Sharpe is stabilized across regimes.",
+                                  "howToApply":  "Compute forecast_vol (EWMA/GARCH). Scale each asset\u0027s projected drift exposure by target_vol/forecast_vol (capped at a max leverage). Report both the raw drift and the risk-targeted drift. At the portfolio level, re-scale aggregate exposure so total forecast vol equals the target. This integrates directly with the TSMOM, vol-target, and risk-parity strategies in the catalog.",
+                                  "sources":  [
+                                                  "Moskowitz, Ooi \u0026 Pedersen (2012), \u0027Time Series Momentum\u0027, JFE",
+                                                  "Moreira \u0026 Muir (2017), \u0027Volatility-Managed Portfolios\u0027, Journal of Finance"
+                                              ]
+                              },
+                              {
+                                  "name":  "Shrinkage of Drift Estimates (James-Stein / CAPM prior)",
+                                  "summary":  "Shrink noisy sample-mean drift estimates toward a structured prior (the cross-sectional mean or the CAPM/factor-implied return), which provably reduces estimation error and prevents the projection from chasing high but unreliable historical means.",
+                                  "howToApply":  "Compute each asset\u0027s sample drift and its standard error (sigma/sqrt(n)). Set the prior = CAPM expected return (rf + beta*market_premium) or the universe cross-sectional mean. shrunk_drift = w*sample_drift + (1-w)*prior, with w increasing in sample size and decreasing in estimation variance (James-Stein-style). Use the shrunk drift as the projection input; report the shrinkage weight as a confidence cue.",
+                                  "sources":  [
+                                                  "James \u0026 Stein (1961), \u0027Estimation with Quadratic Loss\u0027",
+                                                  "Jorion (1986), \u0027Bayes-Stein Estimation for Portfolio Analysis\u0027, JFQA",
+                                                  "Black \u0026 Litterman (1992) â€” equilibrium prior for expected returns"
+                                              ]
+                              }
+                          ],
+    "backtestMetrics":  [
+                            {
+                                "name":  "CAGR",
+                                "formula":  "CAGR = (V_end / V_start)^(252/N_days) - 1",
+                                "summary":  "Compound annual growth rate of the equity curve: the constant annual rate that grows the starting value to the ending value over N trading days. The headline return metric."
+                            },
+                            {
+                                "name":  "Sharpe Ratio",
+                                "formula":  "Sharpe = sqrt(252) * mean(r_t - rf_daily) / std(r_t - rf_daily)",
+                                "summary":  "Annualized excess return per unit of total volatility of the daily strategy returns. The primary risk-adjusted return metric; \u003e1 is good, \u003e2 strong."
+                            },
+                            {
+                                "name":  "Sortino Ratio",
+                                "formula":  "Sortino = sqrt(252) * mean(r_t - rf_daily) / sqrt(mean(min(r_t - MAR, 0)^2))",
+                                "summary":  "Like Sharpe but divides only by downside deviation (returns below the minimum acceptable return / risk-free), rewarding strategies that limit losses rather than penalizing upside volatility."
+                            },
+                            {
+                                "name":  "Calmar Ratio",
+                                "formula":  "Calmar = CAGR / |MaxDrawdown|",
+                                "summary":  "Annualized return divided by the worst peak-to-trough drawdown over the period; measures return earned per unit of worst-case pain. Higher is better; \u003e0.5 is respectable."
+                            },
+                            {
+                                "name":  "Maximum Drawdown",
+                                "formula":  "MaxDD = min_t ( Equity_t / cummax(Equity)_t - 1 )",
+                                "summary":  "The largest peak-to-trough decline of the equity curve, expressed as a negative percentage. The key tail-risk / worst-case-loss measure for an investor\u0027s tolerance."
+                            },
+                            {
+                                "name":  "Ulcer Index",
+                                "formula":  "UI = sqrt( mean( D_t^2 ) ), where D_t = 100*(Equity_t/cummax(Equity)_t - 1)",
+                                "summary":  "Root-mean-square of the percent drawdowns over time; penalizes both the depth and the duration of drawdowns, capturing the \u0027how stressful was the ride\u0027 that MaxDD alone misses."
+                            },
+                            {
+                                "name":  "Win Rate",
+                                "formula":  "WinRate = (number of winning trades or periods) / (total trades or periods)",
+                                "summary":  "Fraction of trades (or holding periods) that were profitable. Interpret alongside profit factor â€” a low win rate can still be highly profitable if winners dwarf losers."
+                            },
+                            {
+                                "name":  "Profit Factor",
+                                "formula":  "PF = sum(gross profits) / |sum(gross losses)|",
+                                "summary":  "Total money won divided by total money lost. PF\u003e1 is profitable; \u003e1.5 is solid, \u003e2 strong. Robust summary of the win/loss magnitude trade-off independent of win rate."
+                            },
+                            {
+                                "name":  "Exposure",
+                                "formula":  "Exposure = (number of bars with a non-zero position) / (total bars)",
+                                "summary":  "Fraction of time the strategy is actually invested (in-market). Low exposure with comparable returns means capital is idle and risk-adjusted efficiency per unit of market time is high."
+                            },
+                            {
+                                "name":  "Turnover",
+                                "formula":  "Turnover = (1/N_years) * sum_t |w_t - w_{t-1}| / 2",
+                                "summary":  "Annualized portfolio turnover: half the sum of absolute weight changes per rebalance, annualized. Proxies trading cost drag; high-turnover strategies need a larger gross edge to survive frictions."
+                            },
+                            {
+                                "name":  "Volatility (Annualized)",
+                                "formula":  "Vol = sqrt(252) * std(r_t)",
+                                "summary":  "Annualized standard deviation of daily strategy returns; the denominator of Sharpe and the headline total-risk figure. Compare to the asset/benchmark vol to gauge risk reduction."
+                            },
+                            {
+                                "name":  "CVaR / Expected Shortfall (95%)",
+                                "formula":  "CVaR_95 = -mean( r_t | r_t \u003c= Quantile_{0.05}(r) )",
+                                "summary":  "Average loss on the worst 5% of days â€” the coherent tail-risk metric. More conservative and better-behaved than VaR for sizing and for comparing strategies\u0027 crash behavior."
+                            },
+                            {
+                                "name":  "Beta to Benchmark",
+                                "formula":  "Beta = Cov(r_strategy, r_SPY) / Var(r_SPY)",
+                                "summary":  "Sensitivity of strategy returns to the benchmark (SPY); low/zero beta indicates market-neutral or defensive behavior, useful for separating skill (alpha) from market exposure."
+                            },
+                            {
+                                "name":  "Information Ratio",
+                                "formula":  "IR = sqrt(252) * mean(r_strategy - r_benchmark) / std(r_strategy - r_benchmark)",
+                                "summary":  "Annualized active return (vs SPY) per unit of tracking error; measures consistency of out- or under-performance against the benchmark, the active-management analogue of Sharpe."
+                            }
+                        ],
+    "notes":  "DEDUP/ORGANIZATION SUMMARY (lead-quant decisions):\n\n1) Counts: 56 raw items in -\u003e 55 distinct strategies out. All 11 requested families are covered: value (5: graham-defensive, graham-number, net-net-ncav, acquirers-multiple, gordon-reverse-implied-growth), quality (6: magic-formula, owner-earnings-yield, buffett-quality-fair-price, gross-profitability, qmj-quality-minus-junk, return-on-capital-compounder), growth (2: peg-lynch, canslim), dividend (6: chowder-rule, dogs-of-dow, small-dogs-of-dow, shareholder-yield, dividend-safety, dividend-growth-aristocrats), momentum (4: cross-sectional-momentum, tsmom, 52w-high, relative-strength-rotation, frog-in-the-pan-momentum), trend (8: absolute-momentum-overlay, faber-taa, donchian-turtle, golden-cross, supertrend, ma-ribbon, dual-ma-crossover, ichimoku, adx-trend-strength), mean-reversion (8: connors-rsi2, connors-cumulative-rsi2, williams-r, stochastic-oscillator, zscore-reversion, keltner-reversion, cci-reversion, pairs-trading), allocation (5: dual-momentum, all-weather-risk-parity, risk-parity-inverse-vol, min-variance, permanent-portfolio, vol-target), anomaly (2: low-vol-anomaly, seasonality), factor (2: fama-french-5, betting-against-beta), technical (2: bollinger-squeeze, obv-volume-trend).\n\n2) MERGES performed: the two TSMOM/absolute-momentum-with-vol-scaling research items were merged into one \u0027tsmom\u0027; the two 52-week-high items (proximity ranking + channel breakout) were merged into \u002752w-high\u0027.\n\n3) DROPPED as duplicates of the app\u0027s existing 20 ids: BOTH Piotroski research items (piotroski-f-score and piotroski-f-score-quality) duplicate the existing \u0027piotroski\u0027 id â€” NOT re-added. Their useful insight (the 5 YoY-change tests cannot be computed from the single fundamentals snapshot, so substitute level-based proxies: roa\u003e0, fcf\u003e0, fcf\u003eeps, current_ratio\u003e=1.5, debt_to_equity\u003c0.4, net_margin\u003e0, revenue_growth\u003e0, and cap confidence ~0.55) should be folded into the existing piotroski builder when it is hardened. Sources: Piotroski (2000), Journal of Accounting Research 38 Supp.\n\n4) ADDED beyond the raw items to fill family gaps the orchestrator listed but the researchers under-supplied: risk-parity-inverse-vol, min-variance, low-vol-anomaly, betting-against-beta, permanent-portfolio, vol-target, seasonality, pairs-trading, ichimoku, adx-trend-strength, obv-volume-trend, gordon-reverse-implied-growth. All are proven/citable and computable from the available data.\n\n5) ID HYGIENE: all 55 ids are kebab-case and unique, and NONE collide with the 20 existing app ids (capm, fama-french, dcf, ddm, markowitz, sharpe, sortino, momentum, mean-reversion, macd, rsi, bollinger, montecarlo, garch, black-scholes, var, kelly, piotroski, altman-z, trend-ols). Note: \u0027cross-sectional-momentum\u0027 and \u0027zscore-reversion\u0027 deliberately differ from the existing single-asset \u0027momentum\u0027 and \u0027mean-reversion\u0027 (cross-sectional ranking + skip-month spec; and an actionable |z|\u003e=2 band with autocorrelation-gated confidence, respectively) â€” kept distinct, not duplicates.\n\n6) DATA-CONSTRAINT FLAGS (recurring proxies the engine must surface as lower confidence): (a) NO multi-period fundamental history -\u003e all YoY/5yr fundamental tests (Piotroski deltas, Fama-French CMA asset-growth, QMJ 5yr growth, Chowder/Aristocrat dividend-growth streaks) use single-snapshot proxies (revenue_growth, dividend_growth). (b) NO COGS line item -\u003e gross-profitability uses ebit/total_assets unless gross_margin present. (c) NO buyback/debt-flow series -\u003e shareholder-yield reconstructs a proxy from FCF surplus and leverage. (d) NO bond ETF in the 24-asset universe -\u003e All-Weather and Permanent Portfolio bond sleeves are proxied by risk-free/cash (flag confidence ~0.4). (e) NO historical intraday -\u003e all technical indicators use DAILY OHLCV; live ticks only going forward. (f) Cross-sectional strategies (magic-formula, gross-profitability, QMJ, BAB, low-vol, momentum ranking, Dogs) require the full 24-asset universe at scoring time to compute percentiles/z-scores â€” the engine must pass cross-sectional context, not just one asset.\n\n7) SCORING CONVENTION matches the existing registry: positive=bullish, score in [-100,100], confidence in [0,1]; reuse the app\u0027s squash()/clamp()/linear_score() helpers and project_horizons() for the trend/momentum/allocation strategies that imply a forward drift. Reference existing implementation at backend/app/strategies/registry.py and quant helpers in backend/app/quant/.\n\n8) PRIORITIES: 14 flagship (priority 1) span every major family for a strong default set; the rest are priority 2 (strong) / 3 (nice-to-have) to phase implementation. Suggested first wave to implement: magic-formula, gross-profitability, qmj-quality-minus-junk, graham-defensive, graham-number, peg-lynch, canslim, chowder-rule, cross-sectional-momentum, tsmom, 52w-high, faber-taa, donchian-turtle, low-vol-anomaly, betting-against-beta, dual-momentum, all-weather-risk-parity."
+}
