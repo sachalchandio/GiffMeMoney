@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "giffmemoney-backend"
+version = "0.1.0"
+description = "GiffMeMoney — FastAPI quant investment-advisory API"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    # pydantic 2.13 emits a spurious UnsupportedFieldAttributeWarning when an
+    # alias_generator is applied to a POST-body model's list/Literal/Optional
+    # fields (e.g. PortfolioRequest). camelCase + snake_case input both work
+    # (verified end-to-end); the warning is cosmetic only.
+    "ignore:The .* attribute with value:Warning",
+]

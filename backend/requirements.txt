@@ -1,0 +1,27 @@
+# GiffMeMoney backend runtime + test dependencies.
+#
+# Math is restricted to numpy / pandas / scipy (no statsmodels / arch / sklearn);
+# GARCH, Holt-Winters, OLS and optimization are implemented by hand.
+# Pins are recent, mutually-compatible minor ranges (Python 3.11).
+
+# --- Web framework / server ---
+fastapi>=0.111,<0.116
+uvicorn[standard]>=0.30,<0.35
+websockets>=12.0,<14.0
+
+# --- Validation / settings (Pydantic v2) ---
+pydantic>=2.7,<3.0
+pydantic-settings>=2.2,<3.0
+
+# --- Scientific stack (only math libraries permitted) ---
+numpy>=1.26,<2.2
+pandas>=2.2,<2.3
+scipy>=1.13,<1.15
+
+# --- HTTP client (TestClient + future provider adapters) ---
+httpx>=0.27,<0.29
+
+# --- Testing ---
+pytest>=8.2,<9.0
+pytest-asyncio>=0.23,<0.25
+anyio>=4.4,<5.0
