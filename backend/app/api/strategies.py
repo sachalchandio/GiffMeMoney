@@ -1,14 +1,25 @@
-"""``/api/strategies`` — the quant model catalog and cross-asset rankings.
+"""``/api/strategies`` — the quant model catalog, rankings, and backtesting.
 
-Two endpoints:
+Endpoints:
 
     * ``GET /api/strategies`` — the static catalog of every registered model
-      (:data:`~app.strategies.registry.STRATEGY_META`, >= 18 entries).
+      (:data:`~app.strategies.registry.STRATEGY_META`, now ~73 entries).
     * ``GET /api/strategies/{id}/rankings`` — every asset ranked by a single
       strategy's signal score (404 if the strategy id is unknown).
+    * ``GET /api/strategies/{id}/backtest?symbol=<sym>`` — the realized
+      backtest (:class:`~app.schemas.BacktestResultDTO`) of one strategy on one
+      asset (V2; 404 for an unknown strategy or symbol).
+    * ``GET /api/strategies/leaderboard?symbol=<sym>&limit=20`` — every strategy
+      ranked by realized backtest Sharpe / CAGR for one asset (V2; 404 for an
+      unknown symbol).
 
 The catalog is served straight from the registry; the per-strategy ranking is
-produced by the shared :class:`~app.strategies.engine.AnalysisEngine`.
+produced by the shared :class:`~app.strategies.engine.AnalysisEngine`. The
+backtests run each strategy's vectorized position series from
+:data:`~app.strategies.registry.POSITION_FUNCS` through
+:func:`~app.quant.backtest.backtest_positions`; strategies without a per-bar
+position function are reported with ``supported=False`` (a buy & hold-only
+result) rather than erroring.
 """
 
 from __future__ import annotations
@@ -16,8 +27,14 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 
 from app.api.recommendations import get_engine
-from app.schemas import StrategyMeta, StrategyRanking
-from app.strategies.registry import STRATEGY_META
+from app.schemas import (
+    BacktestResultDTO,
+    StrategyLeaderboard,
+    StrategyMeta,
+    StrategyRanking,
+)
+from app.api.assets import leaderboard_for_symbol, run_backtest
+from app.strategies.registry import META_BY_ID, STRATEGY_META
 
 __all__ = ["router"]
 
@@ -32,13 +49,60 @@ router = APIRouter(prefix="/api", tags=["strategies"])
 def list_strategies() -> list[StrategyMeta]:
     """Return the static metadata for every registered strategy.
 
-    The catalog mirrors section 7 of the contract (all 20 ids) in declaration
-    order: id, name, category, summary, formula, inputs and references.
+    The catalog mirrors the V2 registry (the base 20 plus the 53 expansion
+    strategies, now ~73 ids) in registry order: id, name, category, summary,
+    formula, inputs and references.
 
     Returns:
-        A list of :class:`~app.schemas.StrategyMeta` (>= 18 entries).
+        A list of :class:`~app.schemas.StrategyMeta` (now >= 70 entries).
     """
     return list(STRATEGY_META)
+
+
+@router.get(
+    "/strategies/leaderboard",
+    response_model=StrategyLeaderboard,
+    summary="Rank strategies by realized backtest performance for one asset",
+)
+def get_strategy_leaderboard(
+    symbol: str = Query(
+        ...,
+        description="Asset ticker to backtest every strategy on (case-insensitive).",
+    ),
+    limit: int = Query(
+        default=20,
+        ge=1,
+        le=200,
+        description="Maximum number of leaderboard entries to return.",
+    ),
+) -> StrategyLeaderboard:
+    """Rank every strategy by its realized backtest performance for one asset.
+
+    Backtests each strategy's vectorized position series on the asset, then
+    ranks the results best-first by Sharpe ratio (CAGR breaks ties). Strategies
+    without a per-bar position function (snapshot / fundamental models) are
+    reported with ``supported=False`` and sorted to the bottom rather than
+    dropped.
+
+    Args:
+        symbol: Asset ticker (case-insensitive).
+        limit: Maximum number of entries to return (1..200; default 20).
+
+    Returns:
+        A :class:`~app.schemas.StrategyLeaderboard` with the asset's buy & hold
+        benchmark and the ranked strategy entries.
+
+    Raises:
+        HTTPException: ``404`` if the symbol is unknown.
+    """
+    engine = get_engine()
+    try:
+        return leaderboard_for_symbol(engine, symbol, limit=limit)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown symbol: {symbol}",
+        ) from exc
 
 
 @router.get(
@@ -75,4 +139,51 @@ def get_strategy_rankings(
         raise HTTPException(
             status_code=404,
             detail=f"Unknown strategy: {strategy_id!r}",
+        ) from exc
+
+
+@router.get(
+    "/strategies/{strategy_id}/backtest",
+    response_model=BacktestResultDTO,
+    summary="Backtest one strategy on one asset",
+)
+def get_strategy_backtest(
+    strategy_id: str,
+    symbol: str = Query(
+        ...,
+        description="Asset ticker to backtest the strategy on (case-insensitive).",
+    ),
+) -> BacktestResultDTO:
+    """Return the realized backtest of one strategy applied to one asset.
+
+    Runs the strategy's vectorized per-bar position series on the asset's close
+    history and reports the 14 realized metrics for both the strategy and a buy
+    & hold benchmark, plus a downsampled equity curve. Strategies that are not
+    time-backtestable per-bar (snapshot / fundamental models) return a buy &
+    hold-only result flagged ``supported=False`` (not an error).
+
+    Args:
+        strategy_id: Strategy id from the catalog.
+        symbol: Asset ticker (case-insensitive).
+
+    Returns:
+        A populated :class:`~app.schemas.BacktestResultDTO`.
+
+    Raises:
+        HTTPException: ``404`` if ``strategy_id`` is unknown or ``symbol`` is
+            not in the universe.
+    """
+    sid = strategy_id.strip()
+    if sid not in META_BY_ID:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown strategy: {strategy_id!r}",
+        )
+    engine = get_engine()
+    try:
+        return run_backtest(engine, sid, symbol)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown symbol: {symbol}",
         ) from exc

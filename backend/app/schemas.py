@@ -120,6 +120,15 @@ class ExpectedReturn(CamelModel):
         high: ~95th percentile total return, in percent.
         prob_positive: Probability the return is positive, in ``[0, 1]``.
         annualized_vol: Annualized volatility, in percent.
+        bull_pct: Optional bull-scenario total return, in percent (V2 fan).
+        base_pct: Optional base-scenario total return, in percent (V2 fan).
+        bear_pct: Optional bear-scenario total return, in percent (V2 fan).
+        cvar_pct: Optional expected shortfall (CVaR) at this horizon, as a
+            positive loss fraction in percent (V2 downside).
+
+    The four V2 scenario/downside fields are additive and optional (``None``
+    by default) so pre-V2 projections remain valid; populate them when the V2
+    projection engine produces a scenario fan + CVaR.
     """
 
     horizon: Horizon
@@ -128,6 +137,113 @@ class ExpectedReturn(CamelModel):
     high: float
     prob_positive: float
     annualized_vol: float
+    bull_pct: Optional[float] = None
+    base_pct: Optional[float] = None
+    bear_pct: Optional[float] = None
+    cvar_pct: Optional[float] = None
+
+
+# ---------------------------------------------------------------------------
+# V2 backtest & regime DTOs (additive — see docs/STRATEGIES-V2.md §7)
+# ---------------------------------------------------------------------------
+
+
+class RegimeInfo(CamelModel):
+    """Market-regime classification for an asset (V2 projection engine).
+
+    Fields:
+        regime: Discrete regime label.
+        trend: Signed trend strength (e.g. normalized slope); sign indicates
+            direction, magnitude indicates conviction.
+        vol_regime: Volatility regime bucket.
+        score: Composite regime score (typically in ``[-1, 1]`` or similar);
+            positive leans bullish, negative bearish.
+    """
+
+    regime: Literal["bull", "bear", "neutral"]
+    trend: float
+    vol_regime: Literal["low", "normal", "high"]
+    score: float
+
+
+class BacktestMetricsDTO(CamelModel):
+    """The 14 realized performance metrics for a backtested strategy/asset.
+
+    All values are decimals unless a percent is documented by the backtest
+    engine. ``cvar95`` is a downside (expected-shortfall) figure. Every field
+    must be finite on the wire (never NaN/inf).
+
+    Fields:
+        cagr: Compound annual growth rate (decimal).
+        total_return: Total return over the backtest window (decimal).
+        ann_vol: Annualized volatility (decimal).
+        sharpe: Annualized Sharpe ratio.
+        sortino: Annualized Sortino ratio.
+        calmar: Calmar ratio (CAGR / abs(max drawdown)).
+        max_drawdown: Maximum peak-to-trough drawdown (decimal, <= 0 or its
+            magnitude per the engine convention).
+        ulcer_index: Ulcer index (drawdown-based risk measure).
+        win_rate: Fraction of winning periods, in ``[0, 1]``.
+        profit_factor: Gross profit / gross loss.
+        exposure: Fraction of time invested (market exposure), in ``[0, 1]``.
+        turnover: Aggregate position turnover.
+        cvar95: 95% conditional VaR (expected shortfall), as a loss figure.
+        beta: Beta to the buy & hold benchmark.
+        information_ratio: Information ratio vs the benchmark.
+    """
+
+    cagr: float
+    total_return: float
+    ann_vol: float
+    sharpe: float
+    sortino: float
+    calmar: float
+    max_drawdown: float
+    ulcer_index: float
+    win_rate: float
+    profit_factor: float
+    exposure: float
+    turnover: float
+    cvar95: float
+    beta: float
+    information_ratio: float
+
+
+class BacktestEquityPoint(CamelModel):
+    """One downsampled point on the strategy-vs-benchmark equity curve.
+
+    Fields:
+        t: Unix timestamp (seconds) of the bar.
+        strategy: Strategy equity value (indexed, e.g. starting at 1.0).
+        benchmark: Buy & hold benchmark equity value (indexed).
+    """
+
+    t: int
+    strategy: float
+    benchmark: float
+
+
+class BacktestResultDTO(CamelModel):
+    """Full backtest result for one strategy applied to one asset.
+
+    Fields:
+        symbol: The backtested asset.
+        strategy_id: Stable id of the strategy (matches the registry).
+        supported: ``False`` for snapshot/fundamental strategies that are not
+            time-backtestable per-bar (a buy & hold-only result is returned).
+        trades: Number of round-trip/position-change trades.
+        metrics: Realized metrics for the strategy.
+        benchmark: Realized metrics for buy & hold of the same asset.
+        equity_curve: Downsampled strategy-vs-benchmark equity series.
+    """
+
+    symbol: str
+    strategy_id: str
+    supported: bool
+    trades: int
+    metrics: BacktestMetricsDTO
+    benchmark: BacktestMetricsDTO
+    equity_curve: list[BacktestEquityPoint] = Field(default_factory=list)
 
 
 class StrategySignal(CamelModel):
@@ -145,6 +261,9 @@ class StrategySignal(CamelModel):
         metrics: Model-specific raw numbers keyed by name.
         horizons: Per-horizon projections (may be empty for non-projecting
             models).
+        backtest: Optional lightweight realized-performance summary for
+            backtestable strategies (``None`` for snapshot strategies or when
+            not computed; V2 additive).
     """
 
     strategy_id: str
@@ -157,6 +276,7 @@ class StrategySignal(CamelModel):
     formula: str
     metrics: dict[str, float] = Field(default_factory=dict)
     horizons: list[ExpectedReturn] = Field(default_factory=list)
+    backtest: Optional[BacktestMetricsDTO] = None
 
 
 class RiskMetrics(CamelModel):
@@ -182,10 +302,16 @@ class AssetAnalysis(CamelModel):
         confidence: Aggregate confidence in ``[0, 1]``.
         expected_returns: Blended projections, always one per :data:`HORIZONS`.
         risk_metrics: Annualized risk metrics.
-        signals: One :class:`StrategySignal` per registered strategy (>= 18).
+        signals: One :class:`StrategySignal` per registered strategy.
         rationale_summary: Narrative "where/why to invest".
         top_reasons: 3-5 bullet reasons.
         updated_at: Unix timestamp in milliseconds.
+        regime: Optional market-regime classification (V2 additive; ``None``
+            when not computed).
+        strategy_count: Number of strategy signals contributing to this
+            analysis (V2 additive).
+        disclaimer: Standard educational-use disclaimer surfaced by the API
+            and shown in the UI (V2 additive; defaults to the standard text).
     """
 
     asset: Asset
@@ -198,6 +324,12 @@ class AssetAnalysis(CamelModel):
     rationale_summary: str
     top_reasons: list[str] = Field(default_factory=list)
     updated_at: int
+    regime: Optional[RegimeInfo] = None
+    strategy_count: int = 0
+    disclaimer: str = (
+        "Educational simulation on synthetic market data — not financial "
+        "advice; projections are model estimates, not guarantees."
+    )
 
 
 class Recommendation(CamelModel):
@@ -243,6 +375,53 @@ class StrategyRanking(CamelModel):
 
     strategy_id: str
     entries: list[RankingEntry] = Field(default_factory=list)
+
+
+class StrategyLeaderboardEntry(CamelModel):
+    """One strategy's realized backtest standing for a single asset (V2).
+
+    Fields:
+        rank: 1-based rank within the leaderboard (best Sharpe first).
+        strategy_id: Stable id of the strategy (matches the registry).
+        strategy_name: Human-readable strategy name.
+        category: Strategy category.
+        supported: ``False`` for snapshot/fundamental strategies that are not
+            time-backtestable per-bar (ranked at the bottom).
+        sharpe: Annualized Sharpe ratio of the strategy equity curve.
+        cagr: Compound annual growth rate of the strategy equity curve (decimal).
+        total_return: Total return over the backtest window (decimal).
+        max_drawdown: Maximum peak-to-trough drawdown (decimal).
+        calmar: Calmar ratio (CAGR / abs(max drawdown)).
+        win_rate: Fraction of winning periods, in ``[0, 1]``.
+        trades: Number of position-change trades over the window.
+    """
+
+    rank: int
+    strategy_id: str
+    strategy_name: str
+    category: StrategyCategory
+    supported: bool
+    sharpe: float
+    cagr: float
+    total_return: float
+    max_drawdown: float
+    calmar: float
+    win_rate: float
+    trades: int
+
+
+class StrategyLeaderboard(CamelModel):
+    """Per-asset leaderboard of strategies ranked by realized backtest performance.
+
+    Fields:
+        symbol: The asset the strategies were backtested on.
+        benchmark: Buy & hold metrics for the asset (the bar to beat).
+        entries: Strategies ranked best-first (by Sharpe, then CAGR).
+    """
+
+    symbol: str
+    benchmark: BacktestMetricsDTO
+    entries: list[StrategyLeaderboardEntry] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -728,6 +907,10 @@ __all__ = [
     "PricePoint",
     # projections & signals
     "ExpectedReturn",
+    "RegimeInfo",
+    "BacktestMetricsDTO",
+    "BacktestEquityPoint",
+    "BacktestResultDTO",
     "StrategySignal",
     "RiskMetrics",
     "AssetAnalysis",
@@ -736,6 +919,8 @@ __all__ = [
     "StrategyMeta",
     "RankingEntry",
     "StrategyRanking",
+    "StrategyLeaderboardEntry",
+    "StrategyLeaderboard",
     # portfolio
     "PortfolioRequest",
     "PortfolioPoint",

@@ -2,11 +2,11 @@
 
 These tests pin the contract-level guarantees of the quant pipeline:
 
-* the registry catalogs at least 18 strategies (section 7) and every catalog id
-  has a matching signal builder;
+* the registry catalogs at least 70 strategies (section 7 + V2 expansion) and
+  every catalog id has a matching signal builder;
 * :meth:`~app.strategies.engine.AnalysisEngine.analyze` returns a complete
   :class:`~app.schemas.AssetAnalysis` for *every* universe symbol — exactly five
-  blended ``expectedReturns`` (one per horizon), at least 18 signals, a composite
+  blended ``expectedReturns`` (one per horizon), at least 70 signals, a composite
   score inside ``[-100, 100]`` and a valid :data:`~app.schemas.Stance`;
 * the engine never raises for any known symbol and rejects unknown ones with a
   ``KeyError``;
@@ -73,8 +73,8 @@ def symbols(engine: AnalysisEngine) -> list[str]:
 
 
 def test_registry_has_at_least_18_strategies() -> None:
-    """The catalog must register at least 18 quant models (section 7)."""
-    assert len(STRATEGY_META) >= 18
+    """The catalog must register at least 70 quant models (V2 expansion)."""
+    assert len(STRATEGY_META) >= 70
 
 
 def test_registry_ids_are_unique() -> None:
@@ -169,12 +169,12 @@ def test_build_signals_values_are_well_formed(engine: AnalysisEngine) -> None:
 def test_analyze_returns_five_horizons_and_enough_signals(
     engine: AnalysisEngine,
 ) -> None:
-    """analyze() yields exactly 5 expectedReturns and >= 18 signals."""
+    """analyze() yields exactly 5 expectedReturns and >= 70 signals."""
     analysis = engine.analyze("AAPL")
     assert isinstance(analysis, AssetAnalysis)
     assert len(analysis.expected_returns) == 5
     assert [h.horizon for h in analysis.expected_returns] == HORIZONS
-    assert len(analysis.signals) >= 18
+    assert len(analysis.signals) >= 70
 
 
 def test_analyze_composite_score_and_recommendation(engine: AnalysisEngine) -> None:
@@ -234,7 +234,7 @@ def test_analyze_never_raises_for_any_symbol(
     for sym in symbols:
         analysis = engine.analyze(sym)
         assert len(analysis.expected_returns) == 5
-        assert len(analysis.signals) >= 18
+        assert len(analysis.signals) >= 70
         assert -100.0 <= analysis.composite_score <= 100.0
         assert analysis.recommendation in VALID_STANCES
 

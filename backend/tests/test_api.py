@@ -9,7 +9,7 @@ every contract route (section 5) and the WebSocket protocol (section 6):
   ``Asset[]``;
 * ``GET /api/assets/{symbol}`` + ``/candles`` + ``/analysis`` + ``/montecarlo``
   return 200 with the right shape; an unknown symbol returns 404;
-* ``GET /api/recommendations`` is ranked; ``GET /api/strategies`` lists >= 18
+* ``GET /api/recommendations`` is ranked; ``GET /api/strategies`` lists >= 70
   models; ``GET /api/strategies/{id}/rankings`` ranks one model (404 for an
   unknown id);
 * ``POST /api/portfolio/optimize`` returns weights that sum to ~1;
@@ -141,8 +141,8 @@ def test_get_analysis_shape(client: TestClient) -> None:
     horizons = body["expectedReturns"]
     assert len(horizons) == 5
     assert {h["horizon"] for h in horizons} == HORIZON_LABELS
-    # At least 18 strategy signals.
-    assert len(body["signals"]) >= 18
+    # At least 70 strategy signals (V2 expansion).
+    assert len(body["signals"]) >= 70
     sig = body["signals"][0]
     for key in ("strategyId", "strategyName", "category", "score", "stance"):
         assert key in sig
@@ -233,12 +233,12 @@ def test_recommendations_filter(client: TestClient) -> None:
 
 
 def test_list_strategies_at_least_18(client: TestClient) -> None:
-    """/api/strategies lists at least 18 catalog entries."""
+    """/api/strategies lists at least 70 catalog entries (V2 expansion)."""
     resp = client.get("/api/strategies")
     assert resp.status_code == 200
     metas = resp.json()
     assert isinstance(metas, list)
-    assert len(metas) >= 18
+    assert len(metas) >= 70
     m = metas[0]
     for key in ("id", "name", "category", "summary", "formula", "inputs", "references"):
         assert key in m

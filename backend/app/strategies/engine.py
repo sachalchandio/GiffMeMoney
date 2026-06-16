@@ -4,9 +4,9 @@ The engine ties together the market-data provider, the quant layer, and the
 strategy registry. For a symbol it:
 
     1. Builds an :class:`AnalysisContext` (aligned histories, factors,
-       fundamentals).
+       fundamentals, OHLC arrays, and the cross-sectional :class:`UniverseStats`).
     2. Runs **all** registered strategy builders to get one
-       :class:`~app.schemas.StrategySignal` per model (>= 18).
+       :class:`~app.schemas.StrategySignal` per model (now ~73).
     3. Computes the :class:`~app.schemas.RiskMetrics` (beta, vol, Sharpe,
        Sortino, VaR95, CVaR95, max drawdown, Calmar).
     4. Blends a single 5-horizon ``expectedReturns`` (confidence-weighted mean
@@ -21,15 +21,26 @@ It also serves the cross-asset views the API needs: ranked
 ``market_summary``, and a per-symbol ``montecarlo`` result.
 
 Every public method is defensive: a single bad symbol can never raise out of
-``analyze`` (and therefore out of any aggregate). Per-symbol analyses are cached.
+``analyze`` (and therefore out of any aggregate). Per-symbol analyses are cached,
+and the cross-sectional :class:`UniverseStats` is built **once per engine pass**
+and cached alongside (invalidated together with the analysis cache).
+
+The :class:`UniverseStats` exposes the cross-sectional metrics the V2
+cross-sectional / factor / allocation strategies need (earnings yield, ROIC,
+profitability, momentum, vol, beta, dividend / shareholder / FCF yields, P/E,
+P/B, PEG, 52-week-high distance, …) keyed by upper-cased symbol, plus
+``percentile(metric, symbol)`` (0..1, 1 = highest) and ``rank(metric, symbol,
+ascending)`` helpers. It also carries per-symbol ``closes`` and ``price`` maps so
+the cross-sectional pairs-trading / price-rank strategies can run.
 """
 
 from __future__ import annotations
 
+import datetime as _dt
 import math
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -37,6 +48,7 @@ from app.market.provider import MarketDataProvider, get_provider
 from app.market.universe import AssetSeed, Fundamentals, get_seed
 from app.quant import metrics, montecarlo, returns
 from app.quant import risk as _risk
+from app.quant import technical
 from app.schemas import (
     Asset,
     AssetAnalysis,
@@ -61,11 +73,359 @@ from app.strategies.registry import (
     build_signals,
 )
 
-__all__ = ["AnalysisContext", "AnalysisEngine"]
+__all__ = [
+    "AnalysisContext",
+    "AnalysisEngine",
+    "UniverseStats",
+    "build_universe_stats",
+]
 
 
 # How many trailing days of history the engine pulls for analysis.
 _ANALYSIS_DAYS: int = 1260
+
+# How many trailing OHLC candles to pull for indicator-based strategies. One
+# year+ is enough for ATR/ADX/Donchian/Ichimoku/52-week-high while staying cheap.
+_CANDLE_LIMIT: int = 400
+
+# Trading days used for annualization (mirrors quant/returns.TRADING_DAYS).
+_TD: int = returns.TRADING_DAYS
+
+
+# ---------------------------------------------------------------------------
+# Cross-sectional universe statistics
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class UniverseStats:
+    """Cross-sectional metrics across the whole universe, computed once per pass.
+
+    All metric dicts are keyed by **upper-cased** symbol. Missing / degenerate
+    values are stored as finite ``0.0`` rather than NaN. The percentile helper
+    returns a value in ``[0, 1]`` (1 = best / highest) and the rank helper a
+    1-based integer rank.
+
+    Attributes:
+        symbols: All universe symbols (upper-cased), in declaration order.
+        asset_class: ``symbol -> asset class`` ('equity'/'crypto'/'etf').
+        sector: ``symbol -> sector`` label.
+        earnings_yield: EBIT / EV (EV = market cap + net debt; fallback cap).
+        roic: EBIT / invested capital (net assets proxy).
+        op_profitability: EBIT / book equity (RMW-style operating profitability).
+        gross_profitability: gross-profit proxy / total assets (EBIT/TA proxy).
+        roa: Return on assets (decimal).
+        net_margin: Net income / sales (decimal).
+        revenue_growth: Year-over-year revenue growth (decimal).
+        momentum_12_1: Trailing 12-1 month price momentum.
+        momentum_6m: Trailing ~6-month price return.
+        ret_52w: ``price / 52w-high - 1`` (``<= 0``).
+        annual_vol: Annualized volatility of daily returns (decimal).
+        beta: Market beta of daily returns.
+        dividend_yield: Annual dividend / price.
+        shareholder_yield: (dividend + net-buyback proxy) / price.
+        fcf_yield: Free cash flow per share / price.
+        pe: Price / EPS (0 when EPS <= 0).
+        pb: Price / book value per share (0 when BVPS <= 0).
+        peg: (P/E) / (revenue growth %) (0 when undefined).
+        closes: ``symbol -> trailing closes`` (numpy array) for pairs-trading.
+        price: ``symbol -> latest price``.
+    """
+
+    symbols: list[str] = field(default_factory=list)
+    asset_class: dict[str, str] = field(default_factory=dict)
+    sector: dict[str, str] = field(default_factory=dict)
+    earnings_yield: dict[str, float] = field(default_factory=dict)
+    roic: dict[str, float] = field(default_factory=dict)
+    op_profitability: dict[str, float] = field(default_factory=dict)
+    gross_profitability: dict[str, float] = field(default_factory=dict)
+    roa: dict[str, float] = field(default_factory=dict)
+    net_margin: dict[str, float] = field(default_factory=dict)
+    revenue_growth: dict[str, float] = field(default_factory=dict)
+    momentum_12_1: dict[str, float] = field(default_factory=dict)
+    momentum_6m: dict[str, float] = field(default_factory=dict)
+    ret_52w: dict[str, float] = field(default_factory=dict)
+    annual_vol: dict[str, float] = field(default_factory=dict)
+    beta: dict[str, float] = field(default_factory=dict)
+    dividend_yield: dict[str, float] = field(default_factory=dict)
+    shareholder_yield: dict[str, float] = field(default_factory=dict)
+    fcf_yield: dict[str, float] = field(default_factory=dict)
+    pe: dict[str, float] = field(default_factory=dict)
+    pb: dict[str, float] = field(default_factory=dict)
+    peg: dict[str, float] = field(default_factory=dict)
+    closes: dict[str, np.ndarray] = field(default_factory=dict)
+    price: dict[str, float] = field(default_factory=dict)
+
+    # ------------------------------------------------------------------
+
+    def _metric_dict(self, metric: str) -> dict[str, float] | None:
+        """Return the per-symbol metric dict named ``metric`` (or ``None``).
+
+        Only numeric scalar metric dicts are eligible (the ``closes`` /
+        ``symbols`` / class / sector maps are excluded from ranking).
+        """
+        if metric in (
+            "symbols",
+            "closes",
+            "price",
+            "asset_class",
+            "sector",
+        ):
+            return None
+        d = getattr(self, metric, None)
+        return d if isinstance(d, dict) else None
+
+    def percentile(self, metric: str, symbol: str) -> float:
+        """Cross-sectional percentile of ``symbol`` for ``metric`` (0..1).
+
+        The percentile is the mid-rank fraction (strictly-below + half the ties)
+        across every symbol with a finite value for ``metric``; 1 means the
+        symbol has the highest value in the universe.
+
+        Args:
+            metric: Name of a numeric metric dict on this object.
+            symbol: Symbol to rank (case-insensitive).
+
+        Returns:
+            A percentile in ``[0, 1]`` (``0.5`` when the metric / symbol is
+            unavailable or the cross-section is degenerate).
+        """
+        d = self._metric_dict(metric)
+        if not d:
+            return 0.5
+        key = symbol.strip().upper()
+        if key not in d:
+            return 0.5
+        vals = np.array(
+            [v for v in d.values() if math.isfinite(float(v))], dtype=np.float64
+        )
+        n = vals.size
+        if n <= 1:
+            return 0.5
+        target = float(d[key])
+        if not math.isfinite(target):
+            return 0.5
+        below = float(np.sum(vals < target))
+        ties = float(np.sum(vals == target))
+        pct = (below + 0.5 * ties) / float(n)
+        return clamp(pct, 0.0, 1.0)
+
+    def rank(self, metric: str, symbol: str, ascending: bool = False) -> int:
+        """1-based rank of ``symbol`` for ``metric`` across the universe.
+
+        Args:
+            metric: Name of a numeric metric dict on this object.
+            symbol: Symbol to rank (case-insensitive).
+            ascending: When ``True`` rank 1 = lowest value; otherwise rank 1 =
+                highest value.
+
+        Returns:
+            A 1-based rank (``0`` when the metric / symbol is unavailable).
+        """
+        d = self._metric_dict(metric)
+        if not d:
+            return 0
+        key = symbol.strip().upper()
+        if key not in d:
+            return 0
+        items = [
+            (s, float(v)) for s, v in d.items() if math.isfinite(float(v))
+        ]
+        if not items:
+            return 0
+        items.sort(key=lambda kv: kv[1], reverse=not ascending)
+        for idx, (s, _v) in enumerate(items, start=1):
+            if s == key:
+                return idx
+        return 0
+
+
+def _finite(x: float, default: float = 0.0) -> float:
+    """Return ``x`` as a finite float, else ``default``."""
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return default
+    return v if math.isfinite(v) else default
+
+
+def _enterprise_value(f: Fundamentals, market_cap: float) -> float:
+    """Enterprise-value proxy = market cap + net-debt proxy (fallback cap).
+
+    Net debt is approximated from leverage and book equity
+    (``debt_to_equity * BVPS * shares_out``) when no debt series exists.
+    """
+    mc = float(market_cap) if market_cap and math.isfinite(market_cap) else 0.0
+    if mc <= 0.0:
+        return 0.0
+    nd = float(f.debt_to_equity) * float(f.book_value_per_share) * float(f.shares_out)
+    nd = nd if math.isfinite(nd) and nd > 0.0 else 0.0
+    ev = mc + nd
+    return ev if math.isfinite(ev) and ev > 0.0 else mc
+
+
+def _invested_capital(f: Fundamentals) -> float:
+    """Invested-capital proxy = net assets (total assets - total liabilities)."""
+    net_assets = float(f.total_assets) - float(f.total_liabilities)
+    return net_assets if math.isfinite(net_assets) and net_assets > 0.0 else 0.0
+
+
+def build_universe_stats(
+    provider: MarketDataProvider,
+    symbols: list[str] | None = None,
+) -> UniverseStats:
+    """Compute the cross-sectional :class:`UniverseStats` for the universe.
+
+    Pulls each asset's snapshot, fundamentals and trailing closes once, derives
+    every cross-sectional metric vectorially, and returns a fully-populated
+    :class:`UniverseStats`. Intended to be called **once per engine pass** and
+    cached; it is defensive (a single failing symbol is skipped, never raised).
+
+    Args:
+        provider: The market-data provider.
+        symbols: Optional explicit symbol list; defaults to the provider's
+            full universe.
+
+    Returns:
+        A populated :class:`UniverseStats`.
+    """
+    stats = UniverseStats()
+
+    try:
+        assets = provider.list_assets()
+    except Exception:  # pragma: no cover - defensive
+        assets = []
+    asset_by_symbol: dict[str, Asset] = {}
+    for a in assets:
+        try:
+            asset_by_symbol[str(a.symbol).upper()] = a
+        except Exception:  # pragma: no cover - defensive
+            continue
+
+    if symbols is None:
+        syms = [str(a.symbol).upper() for a in assets]
+    else:
+        syms = [str(s).upper() for s in symbols]
+
+    # Shared market-factor total returns (for cross-sectional beta).
+    try:
+        factors = provider.factor_history(days=_ANALYSIS_DAYS)
+        mkt = np.asarray(factors.get("mkt", np.empty(0)), dtype=np.float64).ravel()
+    except Exception:  # pragma: no cover - defensive
+        mkt = np.empty(0, dtype=np.float64)
+
+    for sym in syms:
+        try:
+            seed = get_seed(sym)
+        except Exception:  # pragma: no cover - defensive
+            continue
+        asset = asset_by_symbol.get(sym)
+        f: Fundamentals = seed.fundamentals
+        cls = str(seed.asset_class).lower()
+
+        # Price + trailing closes.
+        try:
+            closes = np.asarray(
+                provider.history(sym, days=_ANALYSIS_DAYS), dtype=np.float64
+            ).ravel()
+        except Exception:  # pragma: no cover - defensive
+            closes = np.empty(0, dtype=np.float64)
+        closes = closes[np.isfinite(closes) & (closes > 0.0)]
+        if asset is not None and asset.price and math.isfinite(float(asset.price)) and asset.price > 0:
+            price = float(asset.price)
+        elif closes.size:
+            price = float(closes[-1])
+        else:
+            price = float(seed.base_price) if seed.base_price else 1.0
+
+        mc = 0.0
+        if asset is not None and asset.market_cap:
+            mc = _finite(asset.market_cap)
+        if mc <= 0.0 and seed.market_cap:
+            mc = _finite(seed.market_cap)
+
+        # Daily returns for vol / beta / momentum.
+        ret = returns.simple_returns(closes) if closes.size else np.empty(0)
+
+        stats.symbols.append(sym)
+        stats.asset_class[sym] = cls
+        stats.sector[sym] = str(seed.sector or "Other")
+
+        # --- valuation / quality fundamentals ---
+        ev = _enterprise_value(f, mc)
+        ebit = float(f.ebit)
+        stats.earnings_yield[sym] = _finite(ebit / ev) if ev > 0.0 else 0.0
+        inv = _invested_capital(f)
+        stats.roic[sym] = _finite(ebit / inv) if inv > 0.0 else 0.0
+        be = float(f.book_value_per_share) * float(f.shares_out)
+        if math.isfinite(be) and be > 0.0:
+            stats.op_profitability[sym] = _finite(ebit / be)
+        elif float(f.total_assets) > 0.0:
+            stats.op_profitability[sym] = _finite(ebit / float(f.total_assets))
+        else:
+            stats.op_profitability[sym] = 0.0
+        ta = float(f.total_assets)
+        stats.gross_profitability[sym] = _finite(ebit / ta) if ta > 0.0 else 0.0
+        stats.roa[sym] = _finite(f.roa)
+        stats.net_margin[sym] = _finite(f.net_margin)
+        stats.revenue_growth[sym] = _finite(f.revenue_growth)
+        stats.fcf_yield[sym] = _finite(f.fcf_per_share / price) if price > 0.0 else 0.0
+
+        eps = float(f.eps)
+        bvps = float(f.book_value_per_share)
+        stats.pe[sym] = _finite(price / eps) if eps > 0.0 else 0.0
+        stats.pb[sym] = _finite(price / bvps) if bvps > 0.0 else 0.0
+        growth_pct = float(f.revenue_growth) * 100.0
+        if eps > 0.0 and growth_pct > 0.0:
+            stats.peg[sym] = _finite((price / eps) / growth_pct)
+        else:
+            stats.peg[sym] = 0.0
+
+        # --- dividend / shareholder yields ---
+        div_yield = _finite(f.dividend / price) if price > 0.0 else 0.0
+        stats.dividend_yield[sym] = div_yield
+        # Net-buyback proxy: retained-earnings growth funds modest buybacks for
+        # cash-generative, low-payout names. Proxy buyback yield from FCF not
+        # paid as dividends (capped), shareholder yield = dividend + buyback.
+        fcf = float(f.fcf_per_share)
+        retained_fcf = max(0.0, fcf - float(f.dividend))
+        buyback_yield = _finite(min(retained_fcf, fcf) / price) * 0.3 if price > 0.0 else 0.0
+        stats.shareholder_yield[sym] = clamp(div_yield + buyback_yield, -1.0, 1.0)
+
+        # --- momentum / vol / beta / 52w ---
+        stats.momentum_12_1[sym] = _finite(technical.momentum_12_1(closes))
+        stats.momentum_6m[sym] = _finite(_trailing_return(closes, 126))
+        if closes.size:
+            win = closes[-min(_TD, closes.size):]
+            high52 = float(np.max(win)) if win.size else price
+            stats.ret_52w[sym] = clamp(_finite(price / high52 - 1.0) if high52 > 0 else 0.0, -1.0, 0.0)
+        else:
+            stats.ret_52w[sym] = 0.0
+        vol = metrics.annual_volatility(ret) if ret.size else 0.0
+        stats.annual_vol[sym] = _finite(vol)
+        b = metrics.beta(ret, mkt) if ret.size and mkt.size else 1.0
+        stats.beta[sym] = _finite(b, 1.0)
+
+        # --- raw series for the pairs / price-rank strategies ---
+        if closes.size >= 30:
+            stats.closes[sym] = closes
+        stats.price[sym] = price
+
+    return stats
+
+
+def _trailing_return(closes: np.ndarray, lookback: int) -> float:
+    """Trailing ``lookback``-bar simple return of a clean close series."""
+    n = closes.size
+    if n < 2:
+        return 0.0
+    lb = min(int(lookback), n - 1)
+    start = float(closes[-(lb + 1)])
+    end = float(closes[-1])
+    if start <= 0.0 or not math.isfinite(start):
+        return 0.0
+    r = end / start - 1.0
+    return float(r) if math.isfinite(r) else 0.0
 
 
 @dataclass
@@ -87,6 +447,16 @@ class AnalysisContext:
         rf_daily: Scalar daily risk-free rate (mean of the rf series).
         fundamentals: The asset's :class:`~app.market.universe.Fundamentals`.
         market_cap: Market capitalisation (0.0 when unknown).
+        universe: Cross-sectional :class:`UniverseStats` for the whole universe
+            (shared across every per-asset context in a pass; V2 additive).
+        all_symbols: Every universe symbol (upper-cased; V2 additive).
+        highs: Daily high prices aligned to ``closes`` (V2 additive; falls back
+            to ``closes`` when OHLC is unavailable).
+        lows: Daily low prices aligned to ``closes`` (V2 additive).
+        volumes: Daily volumes aligned to ``closes`` (V2 additive; empty array
+            when unavailable).
+        now: Deterministic "current time" for calendar strategies (the engine
+            reads the system clock; tests inject a fixed value; V2 additive).
     """
 
     asset: Asset
@@ -99,6 +469,12 @@ class AnalysisContext:
     rf_daily: float
     fundamentals: Fundamentals
     market_cap: float
+    universe: UniverseStats = field(default_factory=UniverseStats)
+    all_symbols: list[str] = field(default_factory=list)
+    highs: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float64))
+    lows: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float64))
+    volumes: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.float64))
+    now: _dt.datetime | None = None
 
 
 class AnalysisEngine:
@@ -114,21 +490,53 @@ class AnalysisEngine:
         """Initialise the engine with a market-data provider and empty cache."""
         self._provider: MarketDataProvider = provider or get_provider()
         self._cache: dict[str, AssetAnalysis] = {}
+        self._universe: UniverseStats | None = None
+        self._all_symbols: list[str] | None = None
         self._lock = threading.Lock()
+
+    # ------------------------------------------------------------------
+    # Universe statistics (built once per pass, cached)
+    # ------------------------------------------------------------------
+
+    def universe_stats(self) -> UniverseStats:
+        """Return the cached cross-sectional :class:`UniverseStats`.
+
+        Built once on first use and reused across every per-asset analysis until
+        :meth:`clear_cache` invalidates it (together with the analysis cache).
+
+        Returns:
+            The shared :class:`UniverseStats`.
+        """
+        cached = self._universe
+        if cached is not None:
+            return cached
+        with self._lock:
+            if self._universe is None:
+                self._universe = build_universe_stats(self._provider)
+                self._all_symbols = list(self._universe.symbols)
+            return self._universe
+
+    def clear_cache(self) -> None:
+        """Drop the per-symbol analysis cache and the universe stats together."""
+        with self._lock:
+            self._cache.clear()
+            self._universe = None
+            self._all_symbols = None
 
     # ------------------------------------------------------------------
     # Context construction
     # ------------------------------------------------------------------
 
-    def context(self, symbol: str) -> AnalysisContext:
+    def context(self, symbol: str, now: _dt.datetime | None = None) -> AnalysisContext:
         """Build an :class:`AnalysisContext` for ``symbol``.
 
-        Pulls the asset snapshot, daily closes, factor histories and
-        fundamentals, then trailing-aligns the factor/return arrays to a common
-        length.
+        Pulls the asset snapshot, daily closes, OHLC candle arrays, factor
+        histories and fundamentals, attaches the shared :class:`UniverseStats`,
+        then trailing-aligns the factor/return arrays to a common length.
 
         Args:
             symbol: Asset ticker (case-insensitive).
+            now: Optional deterministic "current time" for calendar strategies.
 
         Returns:
             A populated :class:`AnalysisContext`.
@@ -142,6 +550,9 @@ class AnalysisEngine:
             self._provider.history(symbol, days=_ANALYSIS_DAYS), dtype=np.float64
         ).ravel()
         asset_ret = returns.simple_returns(closes)
+
+        # OHLC + volume arrays for indicator-based strategies (defensive).
+        highs, lows, volumes = self._ohlc(symbol, closes)
 
         factors = self._provider.factor_history(days=_ANALYSIS_DAYS)
         mkt = np.asarray(factors.get("mkt", np.empty(0)), dtype=np.float64).ravel()
@@ -171,6 +582,9 @@ class AnalysisEngine:
         if not math.isfinite(market_cap):
             market_cap = 0.0
 
+        universe = self.universe_stats()
+        all_symbols = list(self._all_symbols or universe.symbols)
+
         return AnalysisContext(
             asset=asset,
             seed=seed,
@@ -182,19 +596,59 @@ class AnalysisEngine:
             rf_daily=rf_daily,
             fundamentals=seed.fundamentals,
             market_cap=market_cap,
+            universe=universe,
+            all_symbols=all_symbols,
+            highs=highs,
+            lows=lows,
+            volumes=volumes,
+            now=now,
         )
+
+    def _ohlc(
+        self, symbol: str, closes: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return aligned (highs, lows, volumes) arrays for ``symbol``.
+
+        Pulls recent OHLCV candles from the provider; on any failure the highs /
+        lows fall back to the close series and the volume array is empty, so
+        indicator builders always have *something* finite to work with.
+
+        Args:
+            symbol: Asset ticker.
+            closes: The already-pulled close series (used as the fallback).
+
+        Returns:
+            A ``(highs, lows, volumes)`` tuple of finite ``float64`` arrays.
+        """
+        try:
+            candles = self._provider.get_candles(symbol, limit=_CANDLE_LIMIT)
+        except Exception:  # pragma: no cover - defensive
+            candles = []
+        if candles:
+            highs = np.asarray([float(c.h) for c in candles], dtype=np.float64)
+            lows = np.asarray([float(c.l) for c in candles], dtype=np.float64)
+            volumes = np.asarray([float(c.v) for c in candles], dtype=np.float64)
+            highs = np.nan_to_num(highs, nan=0.0, posinf=0.0, neginf=0.0)
+            lows = np.nan_to_num(lows, nan=0.0, posinf=0.0, neginf=0.0)
+            volumes = np.nan_to_num(volumes, nan=0.0, posinf=0.0, neginf=0.0)
+            return highs, lows, volumes
+        # Fallback: reuse closes for highs/lows, no volume.
+        c = np.asarray(closes, dtype=np.float64).ravel()
+        c = np.nan_to_num(c, nan=0.0, posinf=0.0, neginf=0.0)
+        return c.copy(), c.copy(), np.empty(0, dtype=np.float64)
 
     # ------------------------------------------------------------------
     # Core per-asset analysis
     # ------------------------------------------------------------------
 
-    def analyze(self, symbol: str) -> AssetAnalysis:
+    def analyze(self, symbol: str, now: _dt.datetime | None = None) -> AssetAnalysis:
         """Produce the full composite :class:`~app.schemas.AssetAnalysis`.
 
-        Runs all strategy signals, computes risk metrics, blends the 5-horizon
-        expected returns, forms the composite score / stance, and writes the
-        narrative. The result is cached per symbol (keyed by the upper-cased
-        ticker).
+        Runs all strategy signals (now ~73), computes risk metrics, blends the
+        5-horizon expected returns, forms the composite score / stance, and
+        writes the narrative. The result is cached per symbol (keyed by the
+        upper-cased ticker) only when ``now`` is not injected (so deterministic
+        test injections never poison the shared cache).
 
         Composite score (signals with confidence ``c_i`` and score ``s_i``)::
 
@@ -205,6 +659,8 @@ class AnalysisEngine:
 
         Args:
             symbol: Asset ticker (case-insensitive).
+            now: Optional deterministic "current time" for calendar strategies
+                (e.g. seasonality). When provided the result is not cached.
 
         Returns:
             A complete :class:`~app.schemas.AssetAnalysis`. Unknown symbols
@@ -215,41 +671,58 @@ class AnalysisEngine:
             KeyError: If the symbol is unknown.
         """
         key = symbol.strip().upper()
-        cached = self._cache.get(key)
-        if cached is not None:
-            return cached
-
-        # Building the context validates the symbol (KeyError if unknown).
-        ctx = self.context(symbol)
-
-        with self._lock:
+        cacheable = now is None
+        if cacheable:
             cached = self._cache.get(key)
             if cached is not None:
                 return cached
 
-            signals = build_signals(ctx)
-            risk_metrics = self._risk_metrics(ctx)
-            expected_returns = self._blend_horizons(signals)
-            composite, confidence = self._composite(signals)
-            recommendation = stance_from_score(composite)
-            summary, reasons = self._narrative(
-                ctx, signals, composite, recommendation
-            )
+        # Building the context validates the symbol (KeyError if unknown).
+        ctx = self.context(symbol, now=now)
 
-            analysis = AssetAnalysis(
-                asset=ctx.asset,
-                composite_score=composite,
-                recommendation=recommendation,
-                confidence=confidence,
-                expected_returns=expected_returns,
-                risk_metrics=risk_metrics,
-                signals=signals,
-                rationale_summary=summary,
-                top_reasons=reasons,
-                updated_at=int(time.time() * 1000),
-            )
-            self._cache[key] = analysis
-            return analysis
+        if cacheable:
+            with self._lock:
+                cached = self._cache.get(key)
+                if cached is not None:
+                    return cached
+                analysis = self._build_analysis(ctx)
+                self._cache[key] = analysis
+                return analysis
+        return self._build_analysis(ctx)
+
+    def _build_analysis(self, ctx: AnalysisContext) -> AssetAnalysis:
+        """Assemble the full :class:`~app.schemas.AssetAnalysis` from a context.
+
+        Runs every signal builder, computes risk metrics, blends horizons, forms
+        the composite, writes the narrative, and stamps the strategy count +
+        disclaimer. Never raises (builders are individually guarded upstream).
+
+        Args:
+            ctx: The fully-populated analysis context.
+
+        Returns:
+            A complete :class:`~app.schemas.AssetAnalysis`.
+        """
+        signals = build_signals(ctx)
+        risk_metrics = self._risk_metrics(ctx)
+        expected_returns = self._blend_horizons(signals)
+        composite, confidence = self._composite(signals)
+        recommendation = stance_from_score(composite)
+        summary, reasons = self._narrative(ctx, signals, composite, recommendation)
+
+        return AssetAnalysis(
+            asset=ctx.asset,
+            composite_score=composite,
+            recommendation=recommendation,
+            confidence=confidence,
+            expected_returns=expected_returns,
+            risk_metrics=risk_metrics,
+            signals=signals,
+            rationale_summary=summary,
+            top_reasons=reasons,
+            updated_at=int(time.time() * 1000),
+            strategy_count=len(signals),
+        )
 
     def _risk_metrics(self, ctx: AnalysisContext) -> RiskMetrics:
         """Compute the annualized :class:`~app.schemas.RiskMetrics` for an asset.

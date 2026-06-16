@@ -55,6 +55,22 @@ from app.strategies.base import (
     make_signal,
     squash,
 )
+from app.strategies.builders_allocation_div_anom import (
+    BUILDERS as _BUILDERS_ALLOCATION,
+    POSITION_FUNCS as _POSITION_ALLOCATION,
+)
+from app.strategies.builders_meanrev_technical import (
+    BUILDERS as _BUILDERS_MEANREV,
+    POSITION_FUNCS as _POSITION_MEANREV,
+)
+from app.strategies.builders_momentum_trend import (
+    BUILDERS as _BUILDERS_MOMENTUM,
+    POSITION_FUNCS as _POSITION_MOMENTUM,
+)
+from app.strategies.builders_value_quality import (
+    BUILDERS as _BUILDERS_VALUE,
+    POSITION_FUNCS as _POSITION_VALUE,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - import only for static typing
     from app.strategies.engine import AnalysisContext
@@ -64,6 +80,7 @@ __all__ = [
     "SIGNAL_BUILDERS",
     "build_signals",
     "META_BY_ID",
+    "POSITION_FUNCS",
 ]
 
 
@@ -71,7 +88,7 @@ __all__ = [
 # Catalog metadata (section 7 — all 20 ids, in order)
 # ---------------------------------------------------------------------------
 
-STRATEGY_META: list[StrategyMeta] = [
+_BASE_STRATEGY_META: list[StrategyMeta] = [
     StrategyMeta(
         id="capm",
         name="Capital Asset Pricing Model",
@@ -316,8 +333,9 @@ STRATEGY_META: list[StrategyMeta] = [
     ),
 ]
 
-#: Fast lookup of metadata by strategy id.
-META_BY_ID: dict[str, StrategyMeta] = {m.id: m for m in STRATEGY_META}
+#: Fast lookup of metadata by strategy id (base 20; replaced with the merged
+#: ~73 lookup at module bottom once the builder modules are merged in).
+META_BY_ID: dict[str, StrategyMeta] = {m.id: m for m in _BASE_STRATEGY_META}
 
 
 # ---------------------------------------------------------------------------
@@ -1056,9 +1074,9 @@ def _build_trend_ols(ctx: "AnalysisContext") -> StrategySignal:
 # Registry assembly
 # ---------------------------------------------------------------------------
 
-#: One builder per strategy id (positive score = bullish). Order mirrors
-#: :data:`STRATEGY_META` so :func:`build_signals` runs them in catalog order.
-SIGNAL_BUILDERS: dict[str, Callable[["AnalysisContext"], StrategySignal]] = {
+#: The base 20 builders (positive score = bullish). Merged with the four V2
+#: builder modules into the exported :data:`SIGNAL_BUILDERS` at module bottom.
+_BASE_SIGNAL_BUILDERS: dict[str, Callable[["AnalysisContext"], StrategySignal]] = {
     "capm": _build_capm,
     "fama-french": _build_fama_french,
     "dcf": _build_dcf,
@@ -1079,6 +1097,72 @@ SIGNAL_BUILDERS: dict[str, Callable[["AnalysisContext"], StrategySignal]] = {
     "piotroski": _build_piotroski,
     "altman-z": _build_altman_z,
     "trend-ols": _build_trend_ols,
+}
+
+
+# ---------------------------------------------------------------------------
+# Merge the four V2 builder modules with the base 20 (STRATEGIES-V2 §6)
+# ---------------------------------------------------------------------------
+#
+# Each V2 module exposes ``BUILDERS: dict[id, (StrategyMeta, builder_fn)]`` and
+# ``POSITION_FUNCS: dict[id, position_fn]``. We append them to the base 20 in a
+# stable, deterministic order (base 20 first, then value/quality, momentum/trend,
+# mean-reversion/technical, allocation/dividend/anomaly — each module's internal
+# priority order preserved). Duplicate ids never override the existing 20.
+
+#: The four V2 builder dicts, in registry-append order.
+_V2_BUILDER_MODULES: tuple[
+    dict[str, tuple[StrategyMeta, Callable[["AnalysisContext"], StrategySignal]]],
+    ...,
+] = (
+    _BUILDERS_VALUE,
+    _BUILDERS_MOMENTUM,
+    _BUILDERS_MEANREV,
+    _BUILDERS_ALLOCATION,
+)
+
+
+def _assemble_registry() -> tuple[
+    list[StrategyMeta],
+    dict[str, StrategyMeta],
+    dict[str, Callable[["AnalysisContext"], StrategySignal]],
+]:
+    """Merge the base 20 with the four V2 modules into ordered registry tables.
+
+    Returns:
+        A ``(meta_list, meta_by_id, signal_builders)`` tuple. ``meta_list`` is
+        the base 20 followed by every new id (each module's order preserved);
+        duplicate ids are skipped so the base 20 are never shadowed.
+    """
+    meta_list: list[StrategyMeta] = list(_BASE_STRATEGY_META)
+    builders: dict[str, Callable[["AnalysisContext"], StrategySignal]] = dict(
+        _BASE_SIGNAL_BUILDERS
+    )
+    seen: set[str] = {m.id for m in meta_list}
+
+    for module_builders in _V2_BUILDER_MODULES:
+        for sid, (meta, fn) in module_builders.items():
+            if sid in seen:
+                continue
+            seen.add(sid)
+            meta_list.append(meta)
+            builders[sid] = fn
+
+    meta_by_id = {m.id: m for m in meta_list}
+    return meta_list, meta_by_id, builders
+
+
+#: The merged catalog metadata (~73 ids: the base 20 then the 53 V2 strategies).
+STRATEGY_META, META_BY_ID, SIGNAL_BUILDERS = _assemble_registry()
+
+
+#: Merged vectorized per-bar position-series generators for the backtester,
+#: keyed by strategy id. Only time-backtestable timing strategies appear.
+POSITION_FUNCS: dict[str, Callable] = {
+    **_POSITION_VALUE,
+    **_POSITION_MOMENTUM,
+    **_POSITION_MEANREV,
+    **_POSITION_ALLOCATION,
 }
 
 
