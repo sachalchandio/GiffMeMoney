@@ -46,9 +46,10 @@ import numpy as np
 
 from app.market.provider import MarketDataProvider, get_provider
 from app.market.universe import AssetSeed, Fundamentals, get_seed
-from app.quant import metrics, montecarlo, returns
+from app.quant import metrics, montecarlo, projection, returns
 from app.quant import risk as _risk
 from app.quant import technical
+from app.quant.returns import HORIZON_DAYS
 from app.schemas import (
     Asset,
     AssetAnalysis,
@@ -62,6 +63,7 @@ from app.schemas import (
     MonteCarloResult,
     RankingEntry,
     Recommendation,
+    RegimeInfo,
     RiskMetrics,
     SectorPerf,
     StrategyRanking,
@@ -90,6 +92,37 @@ _CANDLE_LIMIT: int = 400
 
 # Trading days used for annualization (mirrors quant/returns.TRADING_DAYS).
 _TD: int = returns.TRADING_DAYS
+
+# Equity-risk premium used to build the CAPM shrinkage prior for the projection
+# engine (R1). Mirrors ``app.quant.projection._ERP_ANNUAL`` (~4.5%).
+_ERP_ANNUAL: float = 0.045
+
+# Default annual risk-free rate when none can be inferred from the factor series.
+_DEFAULT_RF_ANNUAL: float = 0.04
+
+# Strategy ids whose backtest reliability / historical hit-rate is meaningfully
+# above the registry average; their confidence is given a small reliability
+# bonus when feeding the composite (R4 "strategy reliability") and the drift
+# ensemble. Kept cheap (a static prior) so ``analyze()`` never runs a live
+# backtest (anti-stall).
+_RELIABLE_STRATEGIES: frozenset[str] = frozenset(
+    {
+        "momentum",
+        "trend-ols",
+        "tsmom",
+        "dual-momentum",
+        "absolute-momentum-overlay",
+        "faber-taa",
+        "golden-cross",
+        "fama-french",
+        "fama-french-5",
+        "low-vol-anomaly",
+        "betting-against-beta",
+        "qmj-quality-minus-junk",
+        "gross-profitability",
+        "magic-formula",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -490,8 +523,21 @@ class AnalysisEngine:
         """Initialise the engine with a market-data provider and empty cache."""
         self._provider: MarketDataProvider = provider or get_provider()
         self._cache: dict[str, AssetAnalysis] = {}
+        # Per-symbol raw signal lists, cached so the cross-sectional percentile
+        # pre-pass (``_absolute_score``) and the full ``analyze`` do NOT each run
+        # the 73 builders independently (the builders are pure for a fixed pass).
+        # Keyed by upper-cased symbol; invalidated with the analysis cache.
+        self._signals_cache: dict[str, list[StrategySignal]] = {}
+        # Per-symbol projection parameters (the EXACT capped/shrunk daily drift and
+        # the per-horizon daily vol that ``project()`` derived) so ``montecarlo()``
+        # can run from the same numbers and agree with ``analyze()`` (R3). Keyed by
+        # upper-cased symbol; invalidated together with the analysis cache.
+        self._proj_params: dict[str, dict] = {}
         self._universe: UniverseStats | None = None
         self._all_symbols: list[str] | None = None
+        # Cross-sectional composite percentiles (R5 relative component), built
+        # once on first ``recommendations()``-style pass and cached.
+        self._composite_percentiles: dict[str, float] | None = None
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------------
@@ -520,6 +566,9 @@ class AnalysisEngine:
         """Drop the per-symbol analysis cache and the universe stats together."""
         with self._lock:
             self._cache.clear()
+            self._signals_cache.clear()
+            self._proj_params.clear()
+            self._composite_percentiles = None
             self._universe = None
             self._all_symbols = None
 
@@ -680,15 +729,23 @@ class AnalysisEngine:
         # Building the context validates the symbol (KeyError if unknown).
         ctx = self.context(symbol, now=now)
 
+        # Build outside the lock: ``_build_analysis`` may itself need the engine
+        # (e.g. the lazy cross-sectional percentile map / proj-param cache), so
+        # holding the non-reentrant lock across the build would deadlock. The
+        # double-check below keeps the cache consistent; building twice on a rare
+        # race is harmless (the result is deterministic for a given symbol).
+        if cacheable:
+            cached = self._cache.get(key)
+            if cached is not None:
+                return cached
+        analysis = self._build_analysis(ctx)
         if cacheable:
             with self._lock:
-                cached = self._cache.get(key)
-                if cached is not None:
-                    return cached
-                analysis = self._build_analysis(ctx)
+                existing = self._cache.get(key)
+                if existing is not None:
+                    return existing
                 self._cache[key] = analysis
-                return analysis
-        return self._build_analysis(ctx)
+        return analysis
 
     def _build_analysis(self, ctx: AnalysisContext) -> AssetAnalysis:
         """Assemble the full :class:`~app.schemas.AssetAnalysis` from a context.
@@ -703,10 +760,13 @@ class AnalysisEngine:
         Returns:
             A complete :class:`~app.schemas.AssetAnalysis`.
         """
-        signals = build_signals(ctx)
+        signals = self._signals_for(ctx)
         risk_metrics = self._risk_metrics(ctx)
-        expected_returns = self._blend_horizons(signals)
-        composite, confidence = self._composite(signals)
+        # R1/R2/R3/R6: one projection engine drives the horizons, the scenario
+        # fan, the downside (CVaR/prob-of-loss) and the regime — and stashes the
+        # exact drift+vol so montecarlo() agrees with the analysis.
+        expected_returns, regime = self._project_horizons(ctx, signals)
+        composite, confidence = self._composite(ctx, signals, regime)
         recommendation = stance_from_score(composite)
         summary, reasons = self._narrative(ctx, signals, composite, recommendation)
 
@@ -721,8 +781,37 @@ class AnalysisEngine:
             rationale_summary=summary,
             top_reasons=reasons,
             updated_at=int(time.time() * 1000),
+            regime=regime,
             strategy_count=len(signals),
         )
+
+    def _signals_for(self, ctx: AnalysisContext) -> list[StrategySignal]:
+        """Run (and cache) the 73 signal builders for one context.
+
+        The builders are pure for a fixed engine pass, so caching by symbol lets
+        the cross-sectional percentile pre-pass (:meth:`_absolute_score`) and the
+        full :meth:`_build_analysis` share one set of signals instead of each
+        running all 73 builders — roughly halving the cold first-analyze cost.
+        Injected-``now`` contexts (e.g. seasonality tests) bypass the cache so a
+        deterministic month never poisons the shared signals.
+
+        Args:
+            ctx: The analysis context.
+
+        Returns:
+            The list of strategy signals for the asset.
+        """
+        if ctx.now is not None:
+            return build_signals(ctx)
+        key = str(ctx.asset.symbol).strip().upper()
+        cached = self._signals_cache.get(key)
+        if cached is not None:
+            return cached
+        signals = build_signals(ctx)
+        # Plain dict assignment is atomic in CPython; builds happen outside the
+        # analyze lock so no extra locking is needed.
+        self._signals_cache[key] = signals
+        return signals
 
     def _risk_metrics(self, ctx: AnalysisContext) -> RiskMetrics:
         """Compute the annualized :class:`~app.schemas.RiskMetrics` for an asset.
@@ -756,115 +845,520 @@ class AnalysisEngine:
             calmar=self._safe(calmar),
         )
 
-    def _blend_horizons(
-        self, signals: list[StrategySignal]
-    ) -> list[ExpectedReturn]:
-        """Blend projecting signals into one 5-horizon expected-return curve.
+    def _project_horizons(
+        self, ctx: AnalysisContext, signals: list[StrategySignal]
+    ) -> tuple[list[ExpectedReturn], RegimeInfo | None]:
+        """Build the credible 5-horizon curve + regime via the projection engine.
 
-        For each horizon the engine takes the confidence-weighted mean (across
-        all signals that produced a projection for that horizon) of every field:
-        ``expectedReturnPct``, ``low``, ``high``, ``probPositive`` and
-        ``annualizedVol``. Always returns exactly five entries (one per
-        :data:`~app.schemas.HORIZONS`); when no signal projects, a neutral
-        zero-return / zero-band curve is returned so the DTO is always complete.
+        Replaces the old confidence-weighted blend of every signal's own
+        lognormal bands (which produced +800% 5Y "expected" returns with
+        +26,000% upper bands) with the single financially-credible engine in
+        :mod:`app.quant.projection` (STRATEGIES-V2 §4 / R1-R6):
+
+            1. Gather each *projecting* signal's **implied daily log-drift** (R1)
+               with its confidence into ``signal_drifts`` (the magnitude of each
+               signal is recovered from its own 1D horizon, see
+               :meth:`_implied_daily_drift`).
+            2. Build the CAPM shrinkage prior ``rf + β·ERP`` as a daily log-drift.
+            3. Call :func:`projection.project`, which ensembles + James–Stein
+               shrinks + regime-tilts + **caps** the drift, forecasts GARCH vol
+               with a term structure, draws fat-tailed / bootstrapped bands,
+               builds the bull/base/bear fan and the 95% CVaR, and classifies the
+               regime.
+            4. Cache the **exact** drift + per-horizon daily vol so
+               :meth:`montecarlo` runs from the same numbers (R3: analysis 1Y and
+               Monte-Carlo 1Y expected returns agree within ~1pp).
+
+        Always returns exactly five :class:`~app.schemas.ExpectedReturn` (one per
+        :data:`~app.schemas.HORIZONS`), each carrying the V2 scenario / CVaR
+        fields, plus the :class:`~app.schemas.RegimeInfo`.
 
         Args:
+            ctx: The analysis context (closes, returns, beta inputs, asset class).
             signals: All strategy signals for the asset.
 
         Returns:
-            A list of exactly five :class:`~app.schemas.ExpectedReturn`.
+            A ``(expected_returns, regime)`` tuple.
         """
-        # Accumulate weighted sums per horizon label.
-        acc: dict[str, dict[str, float]] = {
-            h: {
-                "expectedReturnPct": 0.0,
-                "low": 0.0,
-                "high": 0.0,
-                "probPositive": 0.0,
-                "annualizedVol": 0.0,
-                "weight": 0.0,
-            }
-            for h in HORIZONS
-        }
+        rets = np.asarray(ctx.returns, dtype=np.float64).ravel()
+        closes = np.asarray(ctx.closes, dtype=np.float64).ravel()
 
+        # 1) implied daily drifts (+confidence) from the projecting signals.
+        signal_drifts: list[tuple[float, float]] = []
         for sig in signals:
             if not sig.horizons:
                 continue
-            w = float(sig.confidence)
-            if not math.isfinite(w) or w <= 0.0:
-                w = 1e-6
-            for hr in sig.horizons:
-                bucket = acc.get(hr.horizon)
-                if bucket is None:
-                    continue
-                bucket["expectedReturnPct"] += w * float(hr.expected_return_pct)
-                bucket["low"] += w * float(hr.low)
-                bucket["high"] += w * float(hr.high)
-                bucket["probPositive"] += w * float(hr.prob_positive)
-                bucket["annualizedVol"] += w * float(hr.annualized_vol)
-                bucket["weight"] += w
+            mu = self._implied_daily_drift(sig)
+            if mu is None:
+                continue
+            conf = float(sig.confidence)
+            if not math.isfinite(conf) or conf <= 0.0:
+                continue
+            signal_drifts.append((mu, conf))
+
+        # 2) CAPM daily-log-drift prior (rf + beta * ERP).
+        beta = self._safe(metrics.beta(rets, ctx.market_ret), 1.0)
+        capm_drift_daily = self._capm_drift_daily(ctx, beta)
+
+        asset_class = str(ctx.seed.asset_class).lower()
+
+        # 3) run the credible projection engine.
+        try:
+            projs, regime_dict = projection.project(
+                closes=closes,
+                returns=rets,
+                signal_drifts=signal_drifts,
+                rf_daily=float(ctx.rf_daily),
+                beta=beta,
+                capm_drift_daily=capm_drift_daily,
+                asset_class=asset_class,
+            )
+        except Exception:  # pragma: no cover - defensive (project never raises)
+            projs, regime_dict = [], projection.detect_regime(closes)
+
+        # 4) cache the EXACT drift (returned by project) + per-horizon daily vol
+        #    for montecarlo() (R3).
+        exact_drift = self._safe(
+            (regime_dict or {}).get("drift_daily"), 0.0
+        )
+        self._store_proj_params(ctx, exact_drift, projs)
 
         out: list[ExpectedReturn] = []
+        by_label = {p.horizon: p for p in projs}
         for h in HORIZONS:
-            bucket = acc[h]
-            wt = bucket["weight"]
-            if wt > 0.0:
-                er = ExpectedReturn(
-                    horizon=h,  # type: ignore[arg-type]
-                    expected_return_pct=self._safe(bucket["expectedReturnPct"] / wt),
-                    low=self._safe(bucket["low"] / wt),
-                    high=self._safe(bucket["high"] / wt),
-                    prob_positive=clamp(bucket["probPositive"] / wt, 0.0, 1.0),
-                    annualized_vol=self._safe(bucket["annualizedVol"] / wt),
-                )
+            p = by_label.get(h)
+            if p is not None:
+                out.append(ExpectedReturn(**p.to_dict()))
             else:
-                er = ExpectedReturn(
-                    horizon=h,  # type: ignore[arg-type]
-                    expected_return_pct=0.0,
-                    low=0.0,
-                    high=0.0,
-                    prob_positive=0.5,
-                    annualized_vol=0.0,
+                # Defensive neutral entry so the DTO always has 5 horizons.
+                out.append(
+                    ExpectedReturn(
+                        horizon=h,  # type: ignore[arg-type]
+                        expected_return_pct=0.0,
+                        low=0.0,
+                        high=0.0,
+                        prob_positive=0.5,
+                        annualized_vol=0.0,
+                        bull_pct=0.0,
+                        base_pct=0.0,
+                        bear_pct=0.0,
+                        cvar_pct=0.0,
+                    )
                 )
-            out.append(er)
-        return out
 
-    def _composite(self, signals: list[StrategySignal]) -> tuple[float, float]:
-        """Compute the composite score and aggregate confidence from signals.
+        regime = self._regime_info(regime_dict)
+        return out, regime
 
-        See :meth:`analyze` for the formula. The aggregate confidence is the mean
-        signal confidence scaled down a little when signals disagree strongly, so
-        a noisy consensus reports lower confidence.
+    @staticmethod
+    def _implied_daily_drift(sig: StrategySignal) -> float | None:
+        """Recover a projecting signal's implied daily log-drift from its 1D band.
+
+        Every projecting builder produces its ``horizons`` via
+        :func:`app.quant.returns.project_horizons(mu_daily, sigma)`, whose 1D
+        ``expectedReturnPct`` is ``(exp(mu_daily) - 1) * 100``. Inverting that
+        recovers the strategy's own forward drift, which the projection engine
+        then ensembles + shrinks + caps (so a single optimistic strategy can no
+        longer push the blended median to +800%).
 
         Args:
+            sig: A strategy signal (assumed to carry per-horizon projections).
+
+        Returns:
+            The implied daily log-drift, or ``None`` when no usable 1D / 1Y
+            horizon is present.
+        """
+        one_d = next((h for h in sig.horizons if h.horizon == "1D"), None)
+        if one_d is not None:
+            er = float(one_d.expected_return_pct) / 100.0
+            if math.isfinite(er) and er > -1.0:
+                mu = math.log1p(er)
+                return mu if math.isfinite(mu) else None
+        # Fallback: recover from the 1Y horizon (drift over 252 days).
+        one_y = next((h for h in sig.horizons if h.horizon == "1Y"), None)
+        if one_y is not None:
+            er = float(one_y.expected_return_pct) / 100.0
+            if math.isfinite(er) and er > -1.0:
+                mu = math.log1p(er) / float(_TD)
+                return mu if math.isfinite(mu) else None
+        return None
+
+    def _capm_drift_daily(self, ctx: AnalysisContext, beta: float) -> float:
+        """Build the CAPM daily log-drift prior ``rf + β·ERP`` for shrinkage (R1).
+
+        Args:
+            ctx: The analysis context (for the daily risk-free rate).
+            beta: The asset's market beta.
+
+        Returns:
+            A finite daily log-drift used as the James–Stein shrinkage target.
+        """
+        rf_d = self._safe(ctx.rf_daily, 0.0)
+        rf_annual = (
+            projection.daily_to_annual_drift(rf_d) if rf_d != 0.0 else _DEFAULT_RF_ANNUAL
+        )
+        b = self._safe(beta, 1.0)
+        capm_annual = rf_annual + b * _ERP_ANNUAL
+        return projection.annual_to_daily_drift(capm_annual)
+
+    def _store_proj_params(
+        self,
+        ctx: AnalysisContext,
+        drift_daily: float,
+        projs: list[projection.HorizonProjection],
+    ) -> None:
+        """Cache the exact drift + per-horizon daily vol used by ``project()`` (R3).
+
+        ``montecarlo()`` reuses these so it draws GBM paths from the SAME drift
+        and vol the analysis horizons were built on (the per-horizon annualized
+        GARCH vol converted back to a daily vol), guaranteeing the analysis and
+        Monte-Carlo expected returns agree within sampling noise (~1pp).
+
+        Args:
+            ctx: The analysis context (for the symbol key).
+            drift_daily: The EXACT capped/shrunk daily log-drift that
+                :func:`projection.project` used (read from its returned regime).
+            projs: The projections produced by :func:`projection.project`.
+        """
+        # Per-horizon daily vol = annualized horizon vol / sqrt(252).
+        vol_daily_by_h: dict[str, float] = {}
+        for p in projs:
+            ann_vol = self._safe(p.annualized_vol, 0.0) / 100.0
+            vol_daily = ann_vol / math.sqrt(_TD) if ann_vol > 0.0 else 1e-4
+            vol_daily_by_h[p.horizon] = vol_daily if vol_daily > 0.0 else 1e-4
+        key = str(ctx.asset.symbol).strip().upper()
+        # A plain dict assignment is atomic in CPython; building happens outside
+        # the analyze lock, so no extra locking is needed here.
+        self._proj_params[key] = {
+            "drift_daily": self._safe(drift_daily, 0.0),
+            "vol_daily_by_h": vol_daily_by_h,
+        }
+
+    @staticmethod
+    def _regime_info(regime_dict: dict | None) -> RegimeInfo | None:
+        """Coerce a :func:`projection.detect_regime` dict to a ``RegimeInfo``.
+
+        Args:
+            regime_dict: The regime dict (or ``None``).
+
+        Returns:
+            A validated :class:`~app.schemas.RegimeInfo`, or ``None`` on failure.
+        """
+        if not regime_dict:
+            return None
+        try:
+            regime = str(regime_dict.get("regime", "neutral"))
+            if regime not in ("bull", "bear", "neutral"):
+                regime = "neutral"
+            vol_regime = str(regime_dict.get("vol_regime", "normal"))
+            if vol_regime not in ("low", "normal", "high"):
+                vol_regime = "normal"
+            trend = float(regime_dict.get("trend", 0.0))
+            score = float(regime_dict.get("score", 0.0))
+            return RegimeInfo(
+                regime=regime,  # type: ignore[arg-type]
+                trend=trend if math.isfinite(trend) else 0.0,
+                vol_regime=vol_regime,  # type: ignore[arg-type]
+                score=score if math.isfinite(score) else 0.0,
+            )
+        except Exception:  # pragma: no cover - defensive
+            return None
+
+    def _composite(
+        self,
+        ctx: AnalysisContext,
+        signals: list[StrategySignal],
+        regime: RegimeInfo | None = None,
+    ) -> tuple[float, float]:
+        """Compute the calibrated composite score and differentiated confidence.
+
+        Replaces the old over-aggressive disagreement shrink (which collapsed
+        nearly every asset to ``HOLD``) and the flat ``~0.3`` confidence with the
+        STRATEGIES-V2 R4/R5 design.
+
+        **Composite (R5).** A *reliability-weighted* mean of the signal scores —
+        each signal weighted by ``confidence × reliability`` (reliability gives a
+        small bonus to strategies with strong historical hit-rates, computed from
+        a static prior so no live backtest runs) — with a **milder** dispersion
+        penalty than before. The absolute score is then blended with a
+        cross-sectional component (the asset's percentile among the universe's
+        composites, recentred to ``[-100, 100]``) so the universe yields a
+        realistic STANCE MIX instead of 24×HOLD::
+
+            base   = Σ(w_i·s_i) / Σ w_i ,  w_i = conf_i · reliability_i
+            disagr = weighted std of s_i
+            shrink = 1 / (1 + disagr / 110)            (milder than the old /60)
+            abs_sc = base · shrink
+            rel_sc = (percentile(asset) - 0.5) · 2 · 100   (cross-sectional)
+            composite = 0.65·abs_sc + 0.35·rel_sc
+
+        **Confidence (R4).** Differentiated across ≈ ``[0.2, 0.9]`` and driven by
+        four independent factors, each in ``[0, 1]``:
+
+            * **consensus** — the (weighted) share of signals agreeing with the
+              composite direction *and* of non-trivial magnitude;
+            * **dispersion** — lower cross-signal score std ⇒ higher;
+            * **data quality** — history length + whether real fundamentals exist
+              for the asset class (equities richer than crypto/ETF);
+            * **regime clarity** — ``|regime score|`` (a clear bull/bear is more
+              actionable than a muddy neutral tape).
+
+        Two assets with clearly different agreement therefore report clearly
+        different confidence.
+
+        Args:
+            ctx: The analysis context (for data-quality inputs + the symbol).
             signals: All strategy signals for the asset.
+            regime: The projection regime (for the regime-clarity factor).
 
         Returns:
             A ``(composite_score, confidence)`` tuple. ``composite_score`` is in
             ``[-100, 100]`` and ``confidence`` in ``[0, 1]``.
         """
         if not signals:
-            return 0.0, 0.0
+            return 0.0, 0.2
+
         scores = np.array([float(s.score) for s in signals], dtype=np.float64)
+        scores = np.nan_to_num(scores, nan=0.0, posinf=100.0, neginf=-100.0)
         confs = np.array([float(s.confidence) for s in signals], dtype=np.float64)
         confs = np.where(np.isfinite(confs) & (confs > 0.0), confs, 1e-6)
-        scores = np.nan_to_num(scores, nan=0.0, posinf=100.0, neginf=-100.0)
+        reliab = np.array(
+            [
+                1.25 if s.strategy_id in _RELIABLE_STRATEGIES else 1.0
+                for s in signals
+            ],
+            dtype=np.float64,
+        )
+        weights = confs * reliab
 
-        total_w = float(np.sum(confs))
+        total_w = float(np.sum(weights))
         if total_w <= 0.0:
             base = float(np.mean(scores))
+            wmean = base
+            wstd = float(np.std(scores)) if scores.size > 1 else 0.0
         else:
-            base = float(np.sum(confs * scores) / total_w)
+            wmean = float(np.sum(weights * scores) / total_w)
+            base = wmean
+            # Weighted dispersion of the signal scores around the weighted mean.
+            wvar = float(np.sum(weights * (scores - wmean) ** 2) / total_w)
+            wstd = math.sqrt(max(0.0, wvar))
 
-        disagreement = float(np.std(scores)) if scores.size > 1 else 0.0
-        shrink = 1.0 / (1.0 + disagreement / 60.0)
-        composite = clamp(base * shrink, -100.0, 100.0)
+        # R5: a MILDER dispersion penalty so a real net tilt survives disagreement.
+        shrink = 1.0 / (1.0 + wstd / 110.0)
+        abs_score = clamp(base * shrink, -100.0, 100.0)
 
-        mean_conf = float(np.mean(confs))
-        # Penalize confidence when the spread of scores is wide.
-        conf_penalty = 1.0 / (1.0 + disagreement / 100.0)
-        confidence = clamp(mean_conf * conf_penalty, 0.0, 1.0)
+        # R5 cross-sectional component: where does this asset's absolute score sit
+        # among the universe's? Blending in the relative rank spreads the stance
+        # mix so the universe is not uniformly HOLD. Built lazily + cached.
+        pctile = self._composite_percentile(ctx, abs_score)
+        rel_score = clamp((pctile - 0.5) * 2.0 * 100.0, -100.0, 100.0)
+        composite = clamp(0.65 * abs_score + 0.35 * rel_score, -100.0, 100.0)
+
+        # ---- R4 differentiated confidence ----
+        direction = 1.0 if base >= 0.0 else -1.0
+        # Consensus: weighted share of the *active* (|score| > 10) signals that
+        # agree in direction with the net tilt. By construction this lies in
+        # ``[0.5, 1.0]`` (the winning side is always the majority), so it is
+        # STRETCHED onto ``[0, 1]`` to use the full dynamic range — this is the
+        # most discriminating confidence factor across assets.
+        active_mask = np.abs(scores) > 10.0
+        agree_mask = active_mask & ((scores * direction) > 0.0)
+        agree_w = float(np.sum(weights[agree_mask]))
+        active_w = float(np.sum(weights[active_mask]))
+        raw_consensus = (agree_w / active_w) if active_w > 0.0 else 0.5
+        # ``raw_consensus`` is in ``[0.5, 1.0]`` by construction but, with 73
+        # diverse models, in practice spans only ~``[0.52, 0.82]`` across the
+        # universe (rarely does every active model line up). Remap that realistic
+        # band onto the full ``[0, 1]`` so genuinely different agreement produces
+        # clearly different confidence (R4: spread > 0.3).
+        consensus = clamp((raw_consensus - 0.52) / 0.30, 0.0, 1.0)
+
+        # Dispersion factor: tight agreement (low std) -> high. Centred so a
+        # ~45-point std (the universe's typical level) maps near 0.5 and the band
+        # uses its full range across the realistic ~40-70 wstd spread.
+        dispersion_factor = clamp(1.0 - (wstd - 35.0) / 45.0, 0.0, 1.0)
+
+        # Data quality: history length + real fundamentals for the asset class.
+        data_quality = self._data_quality(ctx)
+
+        # Regime clarity: |score| of the regime read (clear bull/bear is clearer);
+        # stretched a little so a moderate regime conviction still contributes.
+        regime_clarity = 0.0
+        if regime is not None:
+            regime_clarity = clamp(abs(float(regime.score)) / 0.6, 0.0, 1.0)
+
+        # Blend the four factors (weights sum to 1) into [0,1]. Consensus carries
+        # the most weight (it discriminates assets best across the universe); the
+        # others modulate it.
+        raw = (
+            0.58 * consensus
+            + 0.17 * dispersion_factor
+            + 0.13 * data_quality
+            + 0.12 * regime_clarity
+        )
+        raw = clamp(raw, 0.0, 1.0)
+        # Map onto the actionable [0.18, 0.95] band so confidence is never a flat
+        # 0.3 and never an over-confident 1.0, while giving a clearly > 0.3 spread
+        # across assets with clearly different signal agreement (R4 re-audit gate).
+        confidence = clamp(0.18 + 0.77 * raw, 0.0, 1.0)
         return composite, confidence
+
+    def _data_quality(self, ctx: AnalysisContext) -> float:
+        """Estimate a ``[0, 1]`` data-quality score for confidence (R4).
+
+        Combines the available return-history length (more history ⇒ more
+        trustworthy statistics) with whether the asset class has *real*
+        fundamentals (equities carry balance-sheet data the value/quality models
+        use; crypto/ETF do not, so their analysis leans on fewer informative
+        signals).
+
+        Args:
+            ctx: The analysis context.
+
+        Returns:
+            A finite quality score in ``[0, 1]``.
+        """
+        n = int(np.asarray(ctx.returns, dtype=np.float64).ravel().size)
+        # 1 year of history -> ~0.7, 5 years -> ~1.0; <1 month -> low.
+        history_q = clamp(n / float(_TD), 0.0, 1.0)
+        history_q = clamp(0.2 + 0.8 * history_q, 0.0, 1.0)
+
+        cls = str(ctx.seed.asset_class).lower()
+        f = ctx.fundamentals
+        has_fundamentals = (
+            cls == "equity"
+            and (abs(float(f.total_assets)) > 1.0 or float(f.eps) != 0.0)
+        )
+        class_q = 1.0 if has_fundamentals else 0.6 if cls == "etf" else 0.55
+
+        return clamp(0.5 * history_q + 0.5 * class_q, 0.0, 1.0)
+
+    def _composite_percentile(self, ctx: AnalysisContext, abs_score: float) -> float:
+        """Cross-sectional percentile of ``abs_score`` among universe composites.
+
+        Drives the R5 relative component. The per-symbol *absolute* composite
+        scores are computed once (cheaply, from cached signal stats — no extra
+        analysis pass) and cached; this asset's percentile (0..1, 1 = highest) is
+        read from that map. When the map cannot be built (single-asset / degenerate
+        universe) a neutral ``0.5`` is returned so the relative term contributes
+        nothing.
+
+        Args:
+            ctx: The analysis context (for the symbol).
+            abs_score: This asset's absolute composite score (a fallback when the
+                symbol is missing from the cached map).
+
+        Returns:
+            A percentile in ``[0, 1]``.
+        """
+        table = self._composite_percentiles
+        if table is None:
+            table = self._build_composite_percentiles()
+        key = str(ctx.asset.symbol).strip().upper()
+        if key in table:
+            return clamp(table[key], 0.0, 1.0)
+        # Symbol not in the precomputed map (e.g. an injected ``now`` analysis):
+        # the cached map holds percentiles (not raw scores) so a neutral 0.5 is
+        # the correct, contribution-free fallback for the relative term.
+        return 0.5
+
+    def _build_composite_percentiles(self) -> dict[str, float]:
+        """Compute + cache cross-sectional composite percentiles for the universe.
+
+        Builds each universe symbol's *absolute* composite score from cached
+        signal statistics — reusing already-cached analyses where available and
+        cheaply computing the absolute score otherwise — then converts the
+        cross-section to per-symbol percentiles (0..1, 1 = highest). The map is
+        cached on the engine and invalidated with :meth:`clear_cache`.
+
+        This runs the full universe **at most once** (lazily, on the first
+        confidence/composite computation that needs it) and never recurses into
+        :meth:`_composite` (it computes only the cheap *absolute* score), so it
+        does not re-sweep the universe repeatedly.
+
+        Returns:
+            A ``symbol -> percentile`` map (possibly empty / degenerate).
+        """
+        cached_table = self._composite_percentiles
+        if cached_table is not None:
+            return cached_table
+
+        # Build the cross-section WITHOUT holding the lock (each ``_absolute_score``
+        # needs the universe stats, whose builder also takes the lock — holding it
+        # here would deadlock the non-reentrant lock). Store under the lock below.
+        scores: dict[str, float] = {}
+        try:
+            symbols = list(self._all_symbols or [])
+            if not symbols:
+                uni = self.universe_stats()
+                symbols = list(uni.symbols)
+        except Exception:  # pragma: no cover - defensive
+            symbols = []
+        for sym in symbols:
+            key = str(sym).strip().upper()
+            existing = self._cache.get(key)
+            if existing is not None:
+                scores[key] = float(existing.composite_score)
+                continue
+            abs_sc = self._absolute_score(sym)
+            if abs_sc is not None:
+                scores[key] = abs_sc
+
+        table: dict[str, float] = {}
+        if len(scores) >= 2:
+            vals = np.array(list(scores.values()), dtype=np.float64)
+            n = vals.size
+            for k, v in scores.items():
+                below = float(np.sum(vals < v))
+                ties = float(np.sum(vals == v))
+                table[k] = clamp((below + 0.5 * ties) / float(n), 0.0, 1.0)
+
+        with self._lock:
+            if self._composite_percentiles is None:
+                self._composite_percentiles = table
+            return self._composite_percentiles
+
+    def _absolute_score(self, symbol: str) -> float | None:
+        """Cheaply compute one symbol's *absolute* composite score for ranking.
+
+        Runs the signal builders for ``symbol`` and forms the reliability-weighted
+        mean with the milder dispersion shrink — the SAME formula as the absolute
+        component of :meth:`_composite`, but WITHOUT the cross-sectional blend or
+        confidence (so it cannot recurse). Used only to seed the cross-sectional
+        percentile map.
+
+        Args:
+            symbol: Asset ticker.
+
+        Returns:
+            The absolute composite score in ``[-100, 100]``, or ``None`` on
+            failure.
+        """
+        try:
+            ctx = self.context(symbol)
+            signals = self._signals_for(ctx)
+        except Exception:  # pragma: no cover - defensive
+            return None
+        if not signals:
+            return None
+        scores = np.array([float(s.score) for s in signals], dtype=np.float64)
+        scores = np.nan_to_num(scores, nan=0.0, posinf=100.0, neginf=-100.0)
+        confs = np.array([float(s.confidence) for s in signals], dtype=np.float64)
+        confs = np.where(np.isfinite(confs) & (confs > 0.0), confs, 1e-6)
+        reliab = np.array(
+            [1.25 if s.strategy_id in _RELIABLE_STRATEGIES else 1.0 for s in signals],
+            dtype=np.float64,
+        )
+        weights = confs * reliab
+        total_w = float(np.sum(weights))
+        if total_w <= 0.0:
+            wmean = float(np.mean(scores))
+            wstd = float(np.std(scores)) if scores.size > 1 else 0.0
+        else:
+            wmean = float(np.sum(weights * scores) / total_w)
+            wvar = float(np.sum(weights * (scores - wmean) ** 2) / total_w)
+            wstd = math.sqrt(max(0.0, wvar))
+        shrink = 1.0 / (1.0 + wstd / 110.0)
+        return clamp(wmean * shrink, -100.0, 100.0)
 
     def _narrative(
         self,
@@ -1059,11 +1553,17 @@ class AnalysisEngine:
     def montecarlo(
         self, symbol: str, horizon: str = "1Y", sims: int = 2000
     ) -> MonteCarloResult:
-        """Run a GBM Monte Carlo for one symbol and shape the result DTO.
+        """Run a GBM Monte Carlo from the SAME drift + vol the analysis used (R3).
 
-        Drift and volatility are estimated from the symbol's realized daily log
-        returns; the spot is the latest close. The horizon maps to a number of
-        trading-day steps via :data:`app.quant.returns.HORIZON_DAYS`.
+        The drift and per-horizon volatility are NOT re-estimated here from raw
+        log returns (which is what made the old ``/montecarlo`` 1Y disagree with
+        the ``/analysis`` 1Y — e.g. +9.6% vs +13.5% in the live audit). Instead
+        the engine reuses the EXACT capped/shrunk daily log-drift and the
+        horizon's annualized GARCH vol (converted to a daily vol) that
+        :meth:`_project_horizons` derived and cached, via
+        :func:`app.quant.projection.mc_summary`. The result is that the analysis
+        and Monte-Carlo expected returns for a horizon agree within sampling
+        noise (~1pp).
 
         Args:
             symbol: Asset ticker (case-insensitive).
@@ -1076,25 +1576,35 @@ class AnalysisEngine:
         Raises:
             KeyError: If the symbol is unknown.
         """
+        # Running the analysis (cached) populates the projection params and
+        # validates the symbol (KeyError if unknown).
+        self.analyze(symbol)
         ctx = self.context(symbol)
-        lr = returns.log_returns(ctx.closes)
-        if lr.size:
-            mu_daily = float(np.mean(lr))
-            sigma_daily = float(np.std(lr))
-        else:
-            mu_daily, sigma_daily = 0.0, 1e-4
+        key = str(ctx.asset.symbol).strip().upper()
+        hz = horizon if horizon in HORIZONS else "1Y"
+
+        params = self._proj_params.get(key)
+        if params is not None:
+            mu_daily = self._safe(params.get("drift_daily"), 0.0)
+            vol_map = params.get("vol_daily_by_h", {}) or {}
+            sigma_daily = self._safe(vol_map.get(hz), 0.0)
+        else:  # pragma: no cover - defensive (analyze always stores params)
+            mu_daily, sigma_daily = 0.0, 0.0
         if not math.isfinite(mu_daily):
             mu_daily = 0.0
         if not math.isfinite(sigma_daily) or sigma_daily <= 0.0:
-            sigma_daily = 1e-4
+            # Fallback to realized daily vol so the fan is never degenerate.
+            lr = returns.log_returns(ctx.closes)
+            sigma_daily = float(np.std(lr)) if lr.size else 1e-4
+            if not math.isfinite(sigma_daily) or sigma_daily <= 0.0:
+                sigma_daily = 1e-4
 
         s0 = float(ctx.asset.price) if ctx.asset.price > 0 else float(ctx.seed.base_price)
-        hz = horizon if horizon in HORIZONS else "1Y"
         seed = abs(hash(ctx.asset.symbol)) % (2**32)
-        summary = montecarlo.montecarlo_summary(
+        summary = projection.mc_summary(
             s0=s0,
-            mu_daily=mu_daily,
-            sigma_daily=sigma_daily,
+            drift_daily=mu_daily,
+            vol_daily=sigma_daily,
             horizon=hz,
             sims=max(1, int(sims)),
             seed=seed,
