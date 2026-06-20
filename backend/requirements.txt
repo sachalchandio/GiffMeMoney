@@ -13,6 +13,9 @@ websockets>=12.0,<14.0
 pydantic>=2.7,<3.0
 pydantic-settings>=2.2,<3.0
 
+# --- Auth (JWT signing/verification; PBKDF2 hashing uses stdlib hashlib) ---
+pyjwt>=2.8,<3.0
+
 # --- Scientific stack (only math libraries permitted) ---
 numpy>=1.26,<2.2
 pandas>=2.2,<2.3
