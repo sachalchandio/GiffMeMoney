@@ -892,6 +892,71 @@ class AllocationAdvice(CamelModel):
     amount: float
 
 
+# ---------------------------------------------------------------------------
+# Auth DTOs (email/password + JWT — see docs/AUTH.md)
+# ---------------------------------------------------------------------------
+#
+# Sandbox/demo auth: real PBKDF2-hashed passwords + signed JWTs, but no email
+# verification, no rate-limiting, and a dev signing secret by default. Password
+# hashes are NEVER exposed on the wire — :class:`UserDTO` is the only user shape
+# returned to clients.
+
+
+class UserDTO(CamelModel):
+    """A public-facing user record (never carries the password hash).
+
+    Fields:
+        id: Opaque user id (uuid).
+        email: The user's lowercased email address.
+        name: The user's display name.
+        created_at: Unix timestamp in milliseconds when the user was created.
+    """
+
+    id: str
+    email: str
+    name: str
+    created_at: int
+
+
+class SignupRequest(CamelModel):
+    """Request body for ``POST /api/auth/signup``.
+
+    Fields:
+        email: The email address to register (validated + lowercased).
+        password: The plaintext password (length >= 6); never stored or logged
+            raw — it is immediately PBKDF2-hashed.
+        name: The user's display name.
+    """
+
+    email: str
+    password: str
+    name: str
+
+
+class LoginRequest(CamelModel):
+    """Request body for ``POST /api/auth/login``.
+
+    Fields:
+        email: The registered email address (case-insensitive).
+        password: The plaintext password to verify; never stored or logged raw.
+    """
+
+    email: str
+    password: str
+
+
+class AuthResponse(CamelModel):
+    """Successful auth result: a signed token plus the public user record.
+
+    Fields:
+        token: A signed JWT (HS256) bearing the user id, email and expiry.
+        user: The :class:`UserDTO` for the authenticated account.
+    """
+
+    token: str
+    user: UserDTO
+
+
 __all__ = [
     # type aliases
     "AssetClass",
@@ -957,4 +1022,9 @@ __all__ = [
     "AdviceRequest",
     "AdviceItem",
     "AllocationAdvice",
+    # auth
+    "UserDTO",
+    "SignupRequest",
+    "LoginRequest",
+    "AuthResponse",
 ]

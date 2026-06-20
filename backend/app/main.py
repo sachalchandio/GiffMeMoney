@@ -31,6 +31,7 @@ from starlette.websockets import WebSocketState
 
 from app.api import (
     assets as assets_api,
+    auth as auth_api,
     invest as invest_api,
     market as market_api,
     portfolio as portfolio_api,
@@ -180,6 +181,7 @@ def create_app() -> FastAPI:
         strategies_api.router,
         portfolio_api.router,
         invest_api.router,
+        auth_api.router,
     ):
         _mount(application, api_router)
 

@@ -68,6 +68,10 @@ class Settings(BaseSettings):
         tick_interval_ms: Interval between live WebSocket price ticks, in ms.
         provider: Market-data provider key used by ``get_provider()``.
         history_days: Number of daily closes the simulator generates per asset.
+        jwt_secret: HMAC signing secret for auth JWTs. Defaults to a **dev**
+            secret — this is a sandbox/demo app, so override it via the
+            ``JWT_SECRET`` environment variable in any non-toy deployment.
+        jwt_expire_days: Lifetime of an issued auth token, in days.
         finnhub_api_key: Optional API key for a future Finnhub adapter.
         polygon_api_key: Optional API key for a future Polygon adapter.
         coingecko_api_key: Optional API key for a future CoinGecko adapter.
@@ -90,6 +94,11 @@ class Settings(BaseSettings):
     tick_interval_ms: int = 1000
     provider: str = "simulated"
     history_days: int = 1300
+
+    # Authentication (sandbox/demo): real hashed passwords + signed JWTs, but a
+    # dev secret by default. Override JWT_SECRET in any non-toy deployment.
+    jwt_secret: str = "dev-secret-change-me"
+    jwt_expire_days: int = 7
 
     # Optional provider credentials (None when running on the simulator).
     finnhub_api_key: Optional[str] = None

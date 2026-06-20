@@ -13,8 +13,11 @@ in ``docs/INVEST.md``. It is a thin, defensive adapter over the invest services:
       sizing via Markowitz.
 
 Money-handling stance: **simulated / sandbox** only. No real money moves; cards
-are validated and stored masked. The account id comes from the optional
-``X-Account-Id`` header (default ``'demo'``); there is no auth.
+are validated and stored masked. The account id is resolved by the shared
+:func:`app.auth.deps.account_id` dependency: a valid ``Authorization: Bearer``
+token maps to the caller's own account (``user:<id>``); otherwise it falls back
+to the optional ``X-Account-Id`` header, then to ``'demo'``. This gives each
+logged-in user an isolated wallet while keeping anonymous/sandbox access working.
 
 Error mapping (per the contract): service ``ValueError`` → HTTP 400 (bad input /
 insufficient funds / invalid card / amount ≤ 0); service ``KeyError`` → HTTP 404
@@ -26,10 +29,11 @@ in :mod:`app.api.portfolio` and is intentionally untouched here.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Header, HTTPException, Path, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 from app.api.recommendations import get_engine
+from app.auth.deps import account_id as account_id_dep
 from app.invest.advisor import AllocationAdvisor
 from app.invest.history import PortfolioHistoryService
 from app.invest.payments import PaymentProvider, get_payment_provider
@@ -54,9 +58,6 @@ from app.schemas import (
 __all__ = ["router"]
 
 router = APIRouter(prefix="/api", tags=["invest"])
-
-#: Default account id when the ``X-Account-Id`` header is absent.
-_DEFAULT_ACCOUNT = "demo"
 
 
 # ---------------------------------------------------------------------------
@@ -132,18 +133,6 @@ def _advisor() -> AllocationAdvisor:
     return AllocationAdvisor(get_engine(), _provider())
 
 
-def _account_id(x_account_id: str | None) -> str:
-    """Resolve the effective account id from the optional header.
-
-    Args:
-        x_account_id: The raw ``X-Account-Id`` header value (may be ``None``).
-
-    Returns:
-        The trimmed account id, or ``'demo'`` when absent/blank.
-    """
-    return (x_account_id or "").strip() or _DEFAULT_ACCOUNT
-
-
 # ---------------------------------------------------------------------------
 # Wallet routes
 # ---------------------------------------------------------------------------
@@ -151,17 +140,18 @@ def _account_id(x_account_id: str | None) -> str:
 
 @router.get("/wallet", response_model=Wallet, summary="Get the account wallet")
 def get_wallet(
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> Wallet:
     """Return the reconciled wallet snapshot for the account.
 
     Args:
-        x_account_id: Optional ``X-Account-Id`` header (default ``'demo'``).
+        account_id: The resolved account id (``user:<id>`` for a logged-in
+            caller, else the ``X-Account-Id`` header, else ``'demo'``).
 
     Returns:
         The current :class:`~app.schemas.Wallet` (cash + invested == total).
     """
-    return _wallet_service().get_wallet(_account_id(x_account_id))
+    return _wallet_service().get_wallet(account_id)
 
 
 @router.post(
@@ -171,13 +161,13 @@ def get_wallet(
 )
 def deposit(
     body: DepositRequest,
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> WalletTxnResponse:
     """Fund the account (simulated charge) and return wallet + transaction.
 
     Args:
         body: The :class:`~app.schemas.DepositRequest` (amount, card, saveCard).
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         A :class:`WalletTxnResponse` with the updated wallet and the deposit txn.
@@ -187,7 +177,7 @@ def deposit(
     """
     try:
         wallet, txn = _wallet_service().deposit(
-            _account_id(x_account_id),
+            account_id,
             body.amount,
             body.card,
             save_card=body.save_card,
@@ -205,13 +195,13 @@ def deposit(
 )
 def withdraw(
     body: WithdrawRequest,
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> WalletTxnResponse:
     """Pay cash out of the account and return wallet + transaction.
 
     Args:
         body: The :class:`~app.schemas.WithdrawRequest` (amount, destination).
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         A :class:`WalletTxnResponse` with the updated wallet and the payout txn.
@@ -221,7 +211,7 @@ def withdraw(
     """
     try:
         wallet, txn = _wallet_service().withdraw(
-            _account_id(x_account_id),
+            account_id,
             body.amount,
             destination=body.destination,
         )
@@ -236,17 +226,17 @@ def withdraw(
     summary="List the masked saved cards on file",
 )
 def list_cards(
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> list[SavedCard]:
     """Return the account's masked saved cards (never raw PAN/CVC).
 
     Args:
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         A list of :class:`~app.schemas.SavedCard`.
     """
-    return _wallet_service().list_cards(_account_id(x_account_id))
+    return _wallet_service().list_cards(account_id)
 
 
 @router.delete(
@@ -256,13 +246,13 @@ def list_cards(
 )
 def delete_card(
     card_id: str = Path(..., description="The saved card's opaque token id."),
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> OkResponse:
     """Remove a saved card from the account.
 
     Args:
         card_id: The opaque token id of the card to remove.
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         ``{ "ok": true }`` on success.
@@ -271,7 +261,7 @@ def delete_card(
         HTTPException: ``404`` if no saved card has that id.
     """
     try:
-        _wallet_service().delete_card(_account_id(x_account_id), card_id)
+        _wallet_service().delete_card(account_id, card_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return OkResponse(ok=True)
@@ -283,17 +273,17 @@ def delete_card(
     summary="List the account ledger (newest first)",
 )
 def list_transactions(
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> list[Transaction]:
     """Return the account's transactions, newest first.
 
     Args:
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         A list of :class:`~app.schemas.Transaction` ordered most-recent first.
     """
-    return _wallet_service().list_transactions(_account_id(x_account_id))
+    return _wallet_service().list_transactions(account_id)
 
 
 # ---------------------------------------------------------------------------
@@ -307,17 +297,17 @@ def list_transactions(
     summary="Get the mark-to-market portfolio state",
 )
 def get_portfolio(
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> PortfolioState:
     """Return the full mark-to-market portfolio view for the account.
 
     Args:
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         The current :class:`~app.schemas.PortfolioState`.
     """
-    return _portfolio_service().get_state(_account_id(x_account_id))
+    return _portfolio_service().get_state(account_id)
 
 
 @router.post(
@@ -327,7 +317,7 @@ def get_portfolio(
 )
 def invest(
     body: InvestRequest,
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> PortfolioState:
     """Split cash across the requested symbols, opening/adding positions.
 
@@ -335,7 +325,7 @@ def invest(
 
     Args:
         body: The :class:`~app.schemas.InvestRequest` (allocation legs).
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         The updated :class:`~app.schemas.PortfolioState`.
@@ -345,9 +335,7 @@ def invest(
             insufficient funds; ``404`` for an unknown symbol.
     """
     try:
-        return _portfolio_service().invest(
-            _account_id(x_account_id), body.allocations
-        )
+        return _portfolio_service().invest(account_id, body.allocations)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -361,13 +349,13 @@ def invest(
 )
 def sell(
     body: SellRequest,
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> PortfolioState:
     """Sell part or all of a position, realizing P&L and crediting cash.
 
     Args:
         body: The :class:`~app.schemas.SellRequest` (symbol, amount or all).
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         The updated :class:`~app.schemas.PortfolioState`.
@@ -378,7 +366,7 @@ def sell(
     """
     try:
         return _portfolio_service().sell(
-            _account_id(x_account_id),
+            account_id,
             body.symbol,
             amount=body.amount,
             sell_all=body.all,
@@ -401,21 +389,19 @@ def portfolio_history(
         le=2000,
         description="Number of trailing daily points to backfill.",
     ),
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> PortfolioHistory:
     """Return the backfilled total + per-position value/P&L curves.
 
     Args:
         points: Number of trailing daily points to reconstruct (1..2000).
-        x_account_id: Optional ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
 
     Returns:
         A :class:`~app.schemas.PortfolioHistory` with a length-``points`` total
         series and one per-position series per held, priceable symbol.
     """
-    return _history_service().portfolio_history(
-        _account_id(x_account_id), points=points
-    )
+    return _history_service().portfolio_history(account_id, points=points)
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +416,7 @@ def portfolio_history(
 )
 def allocate(
     body: AdviceRequest = Body(...),
-    x_account_id: str | None = Header(default=None, alias="X-Account-Id"),
+    account_id: str = Depends(account_id_dep),
 ) -> AllocationAdvice:
     """Recommend a Markowitz-sized basket for the requested amount and risk.
 
@@ -440,7 +426,7 @@ def allocate(
     Args:
         body: The :class:`~app.schemas.AdviceRequest` (amount, riskTolerance,
             optional assetClasses).
-        x_account_id: Optional ``X-Account-Id`` header (accepted, unused).
+        account_id: The resolved account id (accepted for symmetry, unused).
 
     Returns:
         A fully-populated :class:`~app.schemas.AllocationAdvice`.
