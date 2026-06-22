@@ -1,0 +1,4 @@
+# graphify machine-specific cache / interpreter pins — not committed
+.graphify_*
+cost.json
+manifest.json
