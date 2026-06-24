@@ -24,7 +24,7 @@ result) rather than erroring.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.api.recommendations import get_engine
 from app.schemas import (
@@ -45,6 +45,11 @@ router = APIRouter(prefix="/api", tags=["strategies"])
     "/strategies",
     response_model=list[StrategyMeta],
     summary="List the full quant model catalog",
+    description=(
+        "Return the static metadata for every registered strategy (~73 ids) in "
+        "registry order: each `StrategyMeta` carries the id, name, category, "
+        "summary, formula, inputs and academic references."
+    ),
 )
 def list_strategies() -> list[StrategyMeta]:
     """Return the static metadata for every registered strategy.
@@ -63,17 +68,28 @@ def list_strategies() -> list[StrategyMeta]:
     "/strategies/leaderboard",
     response_model=StrategyLeaderboard,
     summary="Rank strategies by realized backtest performance for one asset",
+    description=(
+        "Backtest every registered strategy's vectorized position series on one "
+        "asset and return a `StrategyLeaderboard` ranked best-first by Sharpe "
+        "ratio (CAGR breaks ties). Strategies without a per-bar position "
+        "function (snapshot / fundamental models) are flagged "
+        "`supported=false` and sorted to the bottom rather than dropped. "
+        "Includes the asset's buy & hold benchmark. Returns `404` for an "
+        "unknown symbol."
+    ),
 )
 def get_strategy_leaderboard(
     symbol: str = Query(
         ...,
         description="Asset ticker to backtest every strategy on (case-insensitive).",
+        examples=["AAPL"],
     ),
     limit: int = Query(
         default=20,
         ge=1,
         le=200,
-        description="Maximum number of leaderboard entries to return.",
+        description="Maximum number of leaderboard entries to return (1..200).",
+        examples=[20],
     ),
 ) -> StrategyLeaderboard:
     """Rank every strategy by its realized backtest performance for one asset.
@@ -109,14 +125,24 @@ def get_strategy_leaderboard(
     "/strategies/{strategy_id}/rankings",
     response_model=StrategyRanking,
     summary="Rank every asset by one strategy's signal score",
+    description=(
+        "Score the whole universe with a single strategy and return a "
+        "`StrategyRanking` sorted by that strategy's signal score, most "
+        "bullish first. Returns `404` if `strategy_id` is not a registered "
+        "strategy."
+    ),
 )
 def get_strategy_rankings(
-    strategy_id: str,
+    strategy_id: str = Path(
+        description="Strategy id from the catalog.",
+        examples=["sharpe"],
+    ),
     limit: int = Query(
         default=20,
         ge=1,
         le=200,
-        description="Maximum number of ranked entries to return.",
+        description="Maximum number of ranked entries to return (1..200).",
+        examples=[20],
     ),
 ) -> StrategyRanking:
     """Rank the whole universe by a single strategy's signal score (descending).
@@ -146,12 +172,24 @@ def get_strategy_rankings(
     "/strategies/{strategy_id}/backtest",
     response_model=BacktestResultDTO,
     summary="Backtest one strategy on one asset",
+    description=(
+        "Run one strategy's vectorized per-bar position series on one asset's "
+        "close history and return a `BacktestResultDTO`: the 14 realized "
+        "metrics for both the strategy and a buy & hold benchmark, plus a "
+        "downsampled equity curve. Strategies that are not time-backtestable "
+        "per-bar return a buy & hold-only result flagged `supported=false` "
+        "(not an error). Returns `404` for an unknown strategy id or symbol."
+    ),
 )
 def get_strategy_backtest(
-    strategy_id: str,
+    strategy_id: str = Path(
+        description="Strategy id from the catalog.",
+        examples=["golden-cross"],
+    ),
     symbol: str = Query(
         ...,
         description="Asset ticker to backtest the strategy on (case-insensitive).",
+        examples=["AAPL"],
     ),
 ) -> BacktestResultDTO:
     """Return the realized backtest of one strategy applied to one asset.

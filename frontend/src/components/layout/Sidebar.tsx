@@ -12,6 +12,7 @@ import {
   FlaskConical,
   PieChart,
   Wallet,
+  Bot,
   Table2,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,6 +34,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/strategies', label: 'Strategy Lab', icon: FlaskConical },
   { to: '/portfolio', label: 'Portfolio', icon: PieChart },
   { to: '/invest', label: 'Invest', icon: Wallet },
+  { to: '/auto-trader', label: 'Auto-Trader', icon: Bot },
   { to: '/screener', label: 'Screener', icon: Table2 },
 ];
 

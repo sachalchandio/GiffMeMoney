@@ -440,6 +440,19 @@ class PortfolioRequest(CamelModel):
             ``objective == 'target_return'``.
     """
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "symbols": ["AAPL", "MSFT", "BTC"],
+                    "riskFreeRate": 0.04,
+                    "objective": "max_sharpe",
+                    "targetReturn": None,
+                }
+            ]
+        }
+    )
+
     symbols: list[str]
     risk_free_rate: float
     objective: Literal["max_sharpe", "min_volatility", "target_return"]
@@ -610,6 +623,20 @@ class CardIn(CamelModel):
         holder: Cardholder name as printed on the card.
     """
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "number": "4242424242424242",
+                    "expMonth": 12,
+                    "expYear": 2030,
+                    "cvc": "123",
+                    "holder": "Demo Investor",
+                }
+            ]
+        }
+    )
+
     number: str
     exp_month: int
     exp_year: int
@@ -700,6 +727,24 @@ class DepositRequest(CamelModel):
             the inline ``card`` is still validated but reuse is preferred.
     """
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "amount": 20,
+                    "card": {
+                        "number": "4242424242424242",
+                        "expMonth": 12,
+                        "expYear": 2030,
+                        "cvc": "123",
+                        "holder": "Demo Investor",
+                    },
+                    "saveCard": True,
+                }
+            ]
+        }
+    )
+
     amount: float
     card: CardIn
     save_card: bool = False
@@ -714,6 +759,10 @@ class WithdrawRequest(CamelModel):
         destination: Optional free-text payout destination label.
     """
 
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"amount": 10}]}
+    )
+
     amount: float
     destination: Optional[str] = None
 
@@ -721,12 +770,29 @@ class WithdrawRequest(CamelModel):
 class AllocationItem(CamelModel):
     """One leg of an invest order: spend ``amount`` dollars on ``symbol``."""
 
+    model_config = ConfigDict(
+        json_schema_extra={"examples": [{"symbol": "AAPL", "amount": 10}]}
+    )
+
     symbol: str
     amount: float
 
 
 class InvestRequest(CamelModel):
     """Request body for ``POST /api/portfolio/invest``."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "allocations": [
+                        {"symbol": "AAPL", "amount": 10},
+                        {"symbol": "BTC", "amount": 10},
+                    ]
+                }
+            ]
+        }
+    )
 
     allocations: list[AllocationItem] = Field(default_factory=list)
 
@@ -739,6 +805,12 @@ class SellRequest(CamelModel):
         amount: Dollar amount to sell; ``None`` when ``all`` is true.
         all: When true, liquidate the entire position (``amount`` ignored).
     """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"symbol": "AAPL", "amount": None, "all": True}]
+        }
+    )
 
     symbol: str
     amount: Optional[float] = None
@@ -845,6 +917,18 @@ class AdviceRequest(CamelModel):
         asset_classes: Optional filter; ``None`` means consider all classes.
     """
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "amount": 20,
+                    "riskTolerance": "balanced",
+                    "assetClasses": ["equity", "crypto", "etf"],
+                }
+            ]
+        }
+    )
+
     amount: float
     risk_tolerance: RiskTolerance
     asset_classes: Optional[list[AssetClass]] = None
@@ -893,6 +977,242 @@ class AllocationAdvice(CamelModel):
 
 
 # ---------------------------------------------------------------------------
+# Auto-trader bot DTOs (simulated paper-trading — see app/bot/*)
+# ---------------------------------------------------------------------------
+#
+# HONESTY / SAFETY: the auto-trader is a SIMULATION on synthetic data. It is
+# paper-traded only — no real money moves and no live broker is ever contacted.
+# Every result carries :data:`BOT_DISCLAIMER`. Rotation is momentum / bandit
+# style (allocate MORE to recent winners, LESS to losers); the engine NEVER
+# martingales (never increases a losing sleeve to "recover"). Nothing here
+# implies guaranteed profit.
+
+#: The mandatory, prominent disclaimer surfaced on every bot result + the UI.
+BOT_DISCLAIMER: str = (
+    "Simulated paper-trading on synthetic data — not financial advice; past "
+    "simulated performance does not predict real results; no real funds are "
+    "traded."
+)
+
+#: Stable id of one of the five preset bot modes.
+BotModeId = Literal[
+    "conservative",
+    "balanced",
+    "aggressive",
+    "adaptive-bandit",
+    "all-weather",
+]
+
+#: Discrete risk level of a bot mode (UI badge).
+BotRiskLevel = Literal["low", "moderate", "high"]
+
+#: Rotation style of a bot mode. ``momentum`` / ``bandit`` allocate MORE to
+#: recent winners and LESS to losers; ``none`` is rebalance-only (no tilt).
+#: There is deliberately no martingale option — the engine never chases losses.
+BotRotation = Literal["none", "slow", "moderate", "fast", "bandit"]
+
+#: A simulated bot trade side.
+BotSide = Literal["buy", "sell"]
+
+#: A sleeve's contribution verdict (best / worst by realized contribution).
+BotVerdict = Literal["best", "worst", "neutral"]
+
+
+class BotMode(CamelModel):
+    """A preset auto-trader strategy mode (objective + rotation behaviour).
+
+    Fields:
+        id: Stable mode id (:data:`BotModeId`).
+        name: Human-readable mode name.
+        summary: One-line description of how the mode behaves.
+        risk_level: ``'low' | 'moderate' | 'high'`` UI risk badge.
+        objective: Portfolio objective driving the per-rebalance weights
+            (``'min_volatility'`` / ``'max_sharpe'`` / ``'momentum'`` /
+            ``'risk_parity'`` / ``'bandit'``).
+        rotation: Rotation style (:data:`BotRotation`) — how aggressively the
+            sleeve weights tilt toward recent winners (never toward losers).
+        max_names: Maximum number of sleeves (assets) held at once.
+    """
+
+    id: BotModeId
+    name: str
+    summary: str
+    risk_level: BotRiskLevel
+    objective: str
+    rotation: BotRotation
+    max_names: int
+
+
+class BotConfig(CamelModel):
+    """Configuration for one simulated auto-trader backtest run.
+
+    Fields:
+        amount: Starting paper capital in dollars (must be ``> 0``).
+        mode: The :data:`BotModeId` to run.
+        asset_classes: Optional class filter for the candidate universe
+            (``None`` = all classes).
+        rebalance_days: Trading days between rebalances (default 21 ≈ monthly).
+        stop_loss_pct: Per-sleeve stop: exit a sleeve once it is down more than
+            this percent from its entry (default 25).
+        max_drawdown_pct: Portfolio circuit-breaker: raise cash once total
+            drawdown exceeds this percent (default 35).
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "amount": 10000,
+                    "mode": "balanced",
+                    "assetClasses": ["equity", "etf"],
+                    "rebalanceDays": 21,
+                    "stopLossPct": 25,
+                    "maxDrawdownPct": 35,
+                }
+            ]
+        }
+    )
+
+    amount: float
+    mode: BotModeId
+    asset_classes: Optional[list[AssetClass]] = None
+    rebalance_days: int = 21
+    stop_loss_pct: float = 25.0
+    max_drawdown_pct: float = 35.0
+
+
+class BotRunRequest(CamelModel):
+    """Request body for a bot backtest run.
+
+    Fields:
+        config: The :class:`BotConfig` to backtest.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [{"config": {"amount": 10000, "mode": "balanced"}}]
+        }
+    )
+
+    config: BotConfig
+
+
+class BotTrade(CamelModel):
+    """One simulated paper trade recorded by the auto-trader.
+
+    Fields:
+        t: Unix timestamp (ms) of the (simulated) fill.
+        symbol: The traded asset.
+        side: ``'buy'`` or ``'sell'``.
+        amount: Positive dollar magnitude transacted.
+        strategy: The sleeve / strategy that motivated the trade.
+        price: The (simulated) fill price.
+    """
+
+    t: int
+    symbol: str
+    side: BotSide
+    amount: float
+    strategy: str
+    price: float
+
+
+class SleeveAttribution(CamelModel):
+    """Realized contribution of one sleeve (strategy or symbol) to the run.
+
+    Fields:
+        key: The sleeve key — a strategy name or a symbol.
+        realized_pnl: Cumulative realized + marked dollar P&L of the sleeve.
+        contribution_pct: Share of the run's total P&L attributable to the
+            sleeve, in percent (signed).
+        win_rate: Fraction of the sleeve's rebalance legs that were profitable,
+            in ``[0, 1]``.
+        trades: Number of trades the sleeve generated.
+        verdict: ``'best'`` / ``'worst'`` / ``'neutral'`` ranking flag.
+    """
+
+    key: str
+    realized_pnl: float
+    contribution_pct: float
+    win_rate: float
+    trades: int
+    verdict: BotVerdict
+
+
+class BotEquityPoint(CamelModel):
+    """One point on the bot-vs-benchmark equity curve.
+
+    Fields:
+        t: Unix timestamp (ms) of the bar.
+        bot_value: The bot's total paper value (cash + marked positions).
+        benchmark_value: Equal-weight buy & hold value of the same candidates.
+        drawdown_pct: The bot's drawdown from its running peak, in percent
+            (``<= 0``).
+        regime: The detected market regime at that bar
+            (``'bull' | 'bear' | 'neutral'``).
+    """
+
+    t: int
+    bot_value: float
+    benchmark_value: float
+    drawdown_pct: float
+    regime: str
+
+
+class BotMetrics(CamelModel):
+    """Realized performance metrics for one simulated bot run.
+
+    Fields:
+        total_return_pct: Total return over the run, in percent.
+        cagr_pct: Compound annual growth rate, in percent.
+        sharpe: Annualized Sharpe ratio of the bot's daily returns.
+        sortino: Annualized Sortino ratio.
+        max_drawdown_pct: Worst peak-to-trough drawdown, in percent (``<= 0``).
+        win_rate_pct: Fraction of profitable rebalance periods, in percent.
+        vs_benchmark_pct: Final-value outperformance vs the benchmark, in
+            percentage points (signed).
+        final_value: The bot's final total paper value.
+    """
+
+    total_return_pct: float
+    cagr_pct: float
+    sharpe: float
+    sortino: float
+    max_drawdown_pct: float
+    win_rate_pct: float
+    vs_benchmark_pct: float
+    final_value: float
+
+
+class BotRunResult(CamelModel):
+    """The full result of one simulated auto-trader backtest.
+
+    Fields:
+        mode: The :class:`BotMode` that was run.
+        config: Echo of the :class:`BotConfig` used.
+        equity_curve: Bot-vs-benchmark equity series with regime + drawdown.
+        trades: Every simulated paper trade recorded.
+        attribution: Per-sleeve realized contribution (best → worst).
+        metrics: Realized :class:`BotMetrics` for the run.
+        best_strategy: Key of the best-contributing sleeve (``None`` if none).
+        worst_strategy: Key of the worst-contributing sleeve (``None`` if none).
+        regime_timeline: The regime label at each rebalance, in order.
+        disclaimer: The mandatory simulation disclaimer (:data:`BOT_DISCLAIMER`).
+    """
+
+    mode: BotMode
+    config: BotConfig
+    equity_curve: list[BotEquityPoint] = Field(default_factory=list)
+    trades: list[BotTrade] = Field(default_factory=list)
+    attribution: list[SleeveAttribution] = Field(default_factory=list)
+    metrics: BotMetrics
+    best_strategy: Optional[str] = None
+    worst_strategy: Optional[str] = None
+    regime_timeline: list[str] = Field(default_factory=list)
+    disclaimer: str = BOT_DISCLAIMER
+
+
+# ---------------------------------------------------------------------------
 # Auth DTOs (email/password + JWT — see docs/AUTH.md)
 # ---------------------------------------------------------------------------
 #
@@ -928,6 +1248,18 @@ class SignupRequest(CamelModel):
         name: The user's display name.
     """
 
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "email": "you@example.com",
+                    "password": "hunter2xx",
+                    "name": "Jane Investor",
+                }
+            ]
+        }
+    )
+
     email: str
     password: str
     name: str
@@ -940,6 +1272,14 @@ class LoginRequest(CamelModel):
         email: The registered email address (case-insensitive).
         password: The plaintext password to verify; never stored or logged raw.
     """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"email": "demo@giffmemoney.app", "password": "demo1234"}
+            ]
+        }
+    )
 
     email: str
     password: str
@@ -1022,6 +1362,22 @@ __all__ = [
     "AdviceRequest",
     "AdviceItem",
     "AllocationAdvice",
+    # auto-trader bot type aliases
+    "BotModeId",
+    "BotRiskLevel",
+    "BotRotation",
+    "BotSide",
+    "BotVerdict",
+    "BOT_DISCLAIMER",
+    # auto-trader bot
+    "BotMode",
+    "BotConfig",
+    "BotRunRequest",
+    "BotTrade",
+    "SleeveAttribution",
+    "BotEquityPoint",
+    "BotMetrics",
+    "BotRunResult",
     # auth
     "UserDTO",
     "SignupRequest",

@@ -171,6 +171,32 @@ def _estimate_mu_cov(
     "/portfolio/optimize",
     response_model=PortfolioResult,
     summary="Markowitz mean-variance portfolio optimization",
+    description=(
+        "Solve a long-only, fully-invested mean-variance optimization over the "
+        "requested symbols and return the optimal weights together with the "
+        "efficient frontier and capital market line for charting.\n\n"
+        "Expected returns (`mu`) and the covariance (`S`) are estimated from the "
+        "deterministic simulator's trailing daily price history; everything is "
+        "annualized (252 trading days).\n\n"
+        "**`objective`** (camelCase wire field, one of):\n"
+        "- `max_sharpe` — maximize the Sharpe ratio (the tangency portfolio).\n"
+        "- `min_volatility` — minimize portfolio volatility.\n"
+        "- `target_return` — minimize volatility subject to hitting "
+        "`targetReturn`; supply `targetReturn` (an annual decimal, e.g. `0.12`) "
+        "with this objective.\n\n"
+        "`riskFreeRate` is an annual decimal (e.g. `0.04` for 4%). All "
+        "`weight`/`expectedReturn`/`volatility` values in the response are annual "
+        "decimals.\n\n"
+        "**Status codes**\n"
+        "- `200` — optimization solved.\n"
+        "- `404` — a requested symbol is not in the universe.\n"
+        "- `422` — empty symbol list or otherwise invalid body."
+    ),
+    responses={
+        200: {"description": "Optimal weights, frontier, and capital market line."},
+        404: {"description": "Unknown symbol in the request."},
+        422: {"description": "Empty symbol list or invalid request body."},
+    },
 )
 def optimize_portfolio(request: PortfolioRequest) -> PortfolioResult:
     """Optimize a long-only portfolio over the requested symbols.

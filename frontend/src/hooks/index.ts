@@ -12,3 +12,4 @@ export * from './useWallet';
 export * from './usePortfolioState';
 export * from './usePortfolioHistory';
 export * from './useAdvisor';
+export * from './useBot';

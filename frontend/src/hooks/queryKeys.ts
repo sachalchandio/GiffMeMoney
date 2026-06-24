@@ -37,4 +37,7 @@ export const queryKeys = {
   transactions: ['transactions'] as const,
   portfolioState: ['portfolioState'] as const,
   portfolioHistory: (points?: number) => ['portfolioHistory', points ?? 'default'] as const,
+
+  // auto-trader bot
+  botModes: ['botModes'] as const,
 } as const;
