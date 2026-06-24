@@ -76,6 +76,22 @@ class Settings(BaseSettings):
         polygon_api_key: Optional API key for a future Polygon adapter.
         coingecko_api_key: Optional API key for a future CoinGecko adapter.
         binance_api_key: Optional API key for a future Binance adapter.
+        broker: Broker execution backend key (``'simulated'`` default,
+            ``'alpaca'`` opt-in). Selected by ``get_broker()``.
+        alpaca_api_key: Optional Alpaca API key id (None on the simulator).
+        alpaca_secret_key: Optional Alpaca API secret (None on the simulator).
+        alpaca_base_url: Alpaca REST base URL. **Defaults to the PAPER
+            (sandbox) endpoint** — no real money — so the broker is safe even
+            when keys are present. Only a deliberate override to the live host
+            plus the live gates below ever places real orders.
+        alpaca_live: Master live-trading flag. ``False`` by default; live is
+            additionally gated on real keys and an explicit ``broker_ack``.
+        broker_ack: Free-text live-trading acknowledgement. Live orders are only
+            permitted when this exactly equals
+            ``"I understand this places real orders"``.
+        persist: Persistence backend key (``'memory'`` default, ``'sqlite'``
+            opt-in). SQLite initializes its own new database file only.
+        db_url: SQLAlchemy database URL used when ``persist == 'sqlite'``.
     """
 
     model_config = SettingsConfigDict(
@@ -105,6 +121,26 @@ class Settings(BaseSettings):
     polygon_api_key: Optional[str] = None
     coingecko_api_key: Optional[str] = None
     binance_api_key: Optional[str] = None
+
+    # --- Broker execution (go-live, OPT-IN; ships OFF) ---
+    # Default is the simulated paper broker. The real Alpaca adapter defaults to
+    # Alpaca's PAPER (sandbox) endpoint, so even with keys set no real money
+    # moves. LIVE trading is hard-gated and OFF by default: it requires
+    # ``broker == 'alpaca'`` AND ``alpaca_live`` AND real keys AND
+    # ``broker_ack == 'I understand this places real orders'``.
+    broker: str = "simulated"
+    alpaca_api_key: Optional[str] = None
+    alpaca_secret_key: Optional[str] = None
+    alpaca_base_url: str = "https://paper-api.alpaca.markets"
+    alpaca_live: bool = False
+    broker_ack: Optional[str] = None
+
+    # --- Persistence (go-live, OPT-IN; ships in-memory) ---
+    # Default keeps the in-memory stores so tests and the running app are
+    # unaffected. When ``sqlite`` the app initializes its OWN new database file
+    # (never an existing one) with no auto schema-sync beyond first create.
+    persist: str = "memory"
+    db_url: str = "sqlite:///giffmemoney.db"
 
     @classmethod
     def settings_customise_sources(

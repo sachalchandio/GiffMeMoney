@@ -17,6 +17,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 
+from app.config import settings
 from app.schemas import SavedCard, Transaction
 
 __all__ = [
@@ -116,14 +117,32 @@ _STORE_INSTANCE: AccountStore | None = None
 
 
 def get_store() -> AccountStore:
-    """Return the process-wide :class:`AccountStore` singleton.
+    """Return the process-wide account store singleton.
 
-    Constructed lazily and memoized so every service and API call shares the
-    same in-memory wallet state for the life of the process.
+    Selected by :data:`app.config.settings.persist`:
+
+    * ``'memory'`` (**default**) — the in-memory, thread-safe
+      :class:`AccountStore`, constructed lazily and memoized so every service
+      and API call shares the same wallet state for the life of the process.
+      **This is the only path the default app and the test suite ever take, so
+      default behavior is unchanged.**
+    * ``'sqlite'`` (opt-in) — a SQLite-backed store implementing the same public
+      surface (``lock`` + ``get_account``), returned from
+      :mod:`app.db.repositories` (which initializes the database once).
+      SQLAlchemy is imported lazily here so the default path never depends on it.
 
     Returns:
-        The shared :class:`AccountStore` instance.
+        The shared account store (an :class:`AccountStore` by default; a
+        structurally compatible SQL-backed store when ``persist == 'sqlite'``).
     """
+    if (settings.persist or "memory").strip().lower() == "sqlite":
+        # Lazy import: keeps SQLAlchemy off the default in-memory code path.
+        from app.db.repositories import (  # noqa: PLC0415 - intentional lazy import
+            get_sql_account_store,
+        )
+
+        return get_sql_account_store()  # type: ignore[return-value]
+
     global _STORE_INSTANCE
     if _STORE_INSTANCE is None:
         with _STORE_LOCK:

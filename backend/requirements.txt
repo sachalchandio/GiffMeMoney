@@ -24,6 +24,10 @@ scipy>=1.13,<1.15
 # --- HTTP client (TestClient + future provider adapters) ---
 httpx>=0.27,<0.29
 
+# --- Persistence (go-live, OPT-IN; default stores stay in-memory) ---
+# Only used when GIFF_PERSIST=sqlite; the default in-memory path never imports it.
+sqlalchemy>=2.0,<3.0
+
 # --- Testing ---
 pytest>=8.2,<9.0
 pytest-asyncio>=0.23,<0.25

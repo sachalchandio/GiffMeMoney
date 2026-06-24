@@ -18,6 +18,7 @@ import uuid
 from dataclasses import dataclass
 
 from app.auth.security import hash_password
+from app.config import settings
 from app.schemas import UserDTO
 
 __all__ = [
@@ -185,15 +186,32 @@ def _seed_demo_user(store: UserStore) -> None:
 
 
 def get_store() -> UserStore:
-    """Return the process-wide :class:`UserStore` singleton.
+    """Return the process-wide user store singleton.
 
-    Constructed lazily and memoized so every auth service and request shares the
-    same in-memory user table. The demo user is seeded exactly once, on first
-    construction.
+    Selected by :data:`app.config.settings.persist`:
+
+    * ``'memory'`` (**default**) — the in-memory, thread-safe :class:`UserStore`,
+      constructed lazily and memoized so every auth service and request shares
+      the same user table. The demo user is seeded exactly once. **This is the
+      only path the default app and the test suite ever take, so default
+      behavior is unchanged.**
+    * ``'sqlite'`` (opt-in) — a SQLite-backed store implementing the same public
+      methods, returned from :mod:`app.db.repositories` (which initializes the
+      database once and seeds the same demo user). SQLAlchemy is imported lazily
+      here so the default path never depends on it.
 
     Returns:
-        The shared :class:`UserStore` instance.
+        The shared user store (a :class:`UserStore` by default; a structurally
+        compatible SQL-backed store when ``persist == 'sqlite'``).
     """
+    if (settings.persist or "memory").strip().lower() == "sqlite":
+        # Lazy import: keeps SQLAlchemy off the default in-memory code path.
+        from app.db.repositories import (  # noqa: PLC0415 - intentional lazy import
+            get_sql_user_store,
+        )
+
+        return get_sql_user_store()  # type: ignore[return-value]
+
     global _STORE_INSTANCE
     if _STORE_INSTANCE is None:
         with _STORE_LOCK:

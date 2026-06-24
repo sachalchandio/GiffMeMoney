@@ -13,9 +13,10 @@ A process-wide singleton is chosen by :data:`app.config.settings.provider` via
 
 from __future__ import annotations
 
+import logging
 import threading
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 import numpy as np
 
@@ -34,6 +35,8 @@ __all__ = [
     "SimulatedProvider",
     "get_provider",
 ]
+
+logger = logging.getLogger("app.market.provider")
 
 
 class MarketDataProvider(ABC):
@@ -264,10 +267,66 @@ class SimulatedProvider(MarketDataProvider):
 # Provider registry / singleton
 # ---------------------------------------------------------------------------
 
+
+def _build_simulated() -> MarketDataProvider:
+    """Build the pure deterministic simulated provider (the safe default)."""
+    return SimulatedProvider()
+
+
+def _build_hybrid(backend_name: str) -> Callable[[], MarketDataProvider]:
+    """Return a factory that wraps a named real price backend in a Hybrid.
+
+    The real adapters live in :mod:`app.market.providers`; they are imported
+    lazily inside the factory so the base provider module has **no import-time
+    dependency** on httpx-backed code (and the default simulated path never
+    touches the network). If a backend reports itself unavailable (e.g. a
+    missing API key) or anything goes wrong constructing it, the factory raises,
+    and :func:`get_provider` catches that and falls back to the simulator.
+
+    Args:
+        backend_name: One of ``'finnhub' | 'polygon' | 'coingecko' | 'binance'``.
+
+    Returns:
+        A zero-arg factory producing a :class:`MarketDataProvider`.
+    """
+
+    def factory() -> MarketDataProvider:
+        # Lazy imports keep the simulated default network-free and import-light.
+        from app.market.providers import (  # noqa: PLC0415 - intentional lazy import
+            BinanceBackend,
+            CoinGeckoBackend,
+            FinnhubBackend,
+            HybridProvider,
+            PolygonBackend,
+        )
+
+        backends: Dict[str, type] = {
+            "finnhub": FinnhubBackend,
+            "polygon": PolygonBackend,
+            "coingecko": CoinGeckoBackend,
+            "binance": BinanceBackend,
+        }
+        backend_cls = backends[backend_name]
+        backend = backend_cls()
+        if not backend.available():
+            # No usable credentials → signal a fallback to the simulator.
+            raise RuntimeError(
+                f"provider '{backend_name}' is not configured (missing API key)"
+            )
+        return HybridProvider(backend, SimulatedProvider())
+
+    return factory
+
+
 # Maps the settings ``provider`` key to a zero-arg factory. New adapters
-# register here without changing call sites.
-_PROVIDERS: Dict[str, type[MarketDataProvider]] = {
-    "simulated": SimulatedProvider,
+# register here without changing call sites. Every real adapter is a
+# HybridProvider so the quant engine always has factor/fundamental data.
+_PROVIDERS: Dict[str, Callable[[], MarketDataProvider]] = {
+    "simulated": _build_simulated,
+    "finnhub": _build_hybrid("finnhub"),
+    "polygon": _build_hybrid("polygon"),
+    "coingecko": _build_hybrid("coingecko"),
+    "binance": _build_hybrid("binance"),
 }
 
 _PROVIDER_LOCK = threading.Lock()
@@ -277,16 +336,60 @@ _PROVIDER_INSTANCE: MarketDataProvider | None = None
 def get_provider() -> MarketDataProvider:
     """Return the process-wide :class:`MarketDataProvider` singleton.
 
-    The concrete class is selected by :data:`app.config.settings.provider`.
-    Unknown keys fall back to :class:`SimulatedProvider` so the app always boots.
+    The concrete provider is selected by :data:`app.config.settings.provider`.
+    Selection is **fail-safe**: an unknown key, a missing API key, or *any*
+    error while constructing a real adapter falls back to the pure
+    :class:`SimulatedProvider` (logged once at WARNING) so the app always boots
+    and the default behaviour is never disrupted. Live data is read-only.
 
     Returns:
-        The shared provider instance.
+        The shared provider instance (a :class:`SimulatedProvider` by default,
+        or a hybrid real-backed provider when a real ``provider`` is configured
+        and usable).
     """
     global _PROVIDER_INSTANCE
     if _PROVIDER_INSTANCE is None:
         with _PROVIDER_LOCK:
             if _PROVIDER_INSTANCE is None:
-                cls = _PROVIDERS.get(settings.provider, SimulatedProvider)
-                _PROVIDER_INSTANCE = cls()
+                _PROVIDER_INSTANCE = _select_provider()
     return _PROVIDER_INSTANCE
+
+
+def _select_provider() -> MarketDataProvider:
+    """Construct the configured provider, falling back to simulated on any error.
+
+    Returns:
+        The selected provider, or a :class:`SimulatedProvider` if the configured
+        one is unknown/unconfigured/errored.
+    """
+    key = (settings.provider or "simulated").strip().lower()
+    factory = _PROVIDERS.get(key)
+    if factory is None:
+        logger.warning(
+            "Unknown provider %r; falling back to the simulated provider.", key
+        )
+        return SimulatedProvider()
+    if key == "simulated":
+        return factory()
+    try:
+        provider = factory()
+        logger.info("Market-data provider: using real backend %r (hybrid).", key)
+        return provider
+    except Exception as exc:  # noqa: BLE001 - never crash; always degrade safely
+        logger.warning(
+            "Provider %r unavailable (%s); falling back to the simulated provider.",
+            key,
+            exc,
+        )
+        return SimulatedProvider()
+
+
+def reset_provider_cache() -> None:
+    """Drop the cached provider singleton (test helper).
+
+    The next :func:`get_provider` call re-selects based on the current
+    :data:`app.config.settings.provider`. Not used in production code paths.
+    """
+    global _PROVIDER_INSTANCE
+    with _PROVIDER_LOCK:
+        _PROVIDER_INSTANCE = None

@@ -1,0 +1,53 @@
+# Build-context excludes for BOTH images (compose builds use the repo root as
+# the build context, so this root .dockerignore is the one Docker applies).
+# Keeping it lean speeds builds and prevents host-specific artifacts (venvs,
+# node_modules, prebuilt dist/) from leaking into images.
+
+# --- Version control / CI ---
+.git/
+.gitignore
+.gitattributes
+
+# --- Python (backend) ---
+backend/.venv/
+backend/venv/
+backend/__pycache__/
+**/__pycache__/
+*.py[cod]
+backend/.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+# Local SQLite databases (the image creates its own when PERSIST=sqlite)
+*.db
+*.sqlite3
+
+# --- Node / frontend ---
+# node_modules is reinstalled from the lockfile inside the build; dist/ is
+# rebuilt by `vite build`. Never copy the host's versions.
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+**/*.tsbuildinfo
+
+# --- Secrets / local env (NEVER bake into an image) ---
+.env
+**/.env
+!.env.example
+!frontend/.env.example
+
+# --- Docs / data / tooling not needed at build time ---
+data/
+graphify-out/
+docs/
+*.md
+!README.md
+
+# --- Editor / OS noise ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+npm-debug.log*

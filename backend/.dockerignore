@@ -1,0 +1,31 @@
+# NOTE: the compose builds use the REPOSITORY ROOT as their build context, so
+# Docker applies the root `.dockerignore` (one level up), not this file. This
+# file only takes effect if you build with `backend/` itself as the context
+# (e.g. `cd backend && docker build .`). It mirrors the relevant root excludes
+# so that case also stays clean.
+
+# Virtualenvs (host-specific absolute paths — must never enter the image)
+.venv/
+venv/
+env/
+ENV/
+
+# Python caches / test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local SQLite databases / env files
+*.db
+*.sqlite3
+.env
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

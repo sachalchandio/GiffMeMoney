@@ -1213,6 +1213,192 @@ class BotRunResult(CamelModel):
 
 
 # ---------------------------------------------------------------------------
+# Broker execution DTOs (go-live, OPT-IN — see docs/GOLIVE.md §2)
+# ---------------------------------------------------------------------------
+#
+# SAFETY / HONESTY: the broker layer ships in the **simulated** mode (paper
+# fills against the market provider's price; no real money). The real Alpaca
+# adapter defaults to Alpaca's PAPER (sandbox) endpoint, so even with keys set
+# no real orders are placed. LIVE trading is hard-gated and OFF by default —
+# every broker payload carries ``paper: true/false`` and the disclaimer below so
+# a caller can never mistake a simulated/paper fill for a real one.
+
+#: The mandatory disclaimer surfaced on every broker status/account/order
+#: response (the broker is paper unless live is fully, deliberately enabled).
+BROKER_DISCLAIMER: str = (
+    "Simulated / paper trading — no real money moves unless live trading is "
+    "deliberately enabled via the documented hard-gate. Not financial advice; "
+    "trading carries the risk of real loss."
+)
+
+#: Broker execution backend keys (selected by ``settings.broker``).
+BrokerName = Literal["simulated", "alpaca"]
+
+#: A broker order side.
+BrokerOrderSide = Literal["buy", "sell"]
+
+#: A broker order type. Only ``market`` is supported by the paper broker.
+BrokerOrderType = Literal["market"]
+
+#: Lifecycle status of a broker order.
+BrokerOrderStatus = Literal[
+    "accepted",
+    "filled",
+    "partially_filled",
+    "canceled",
+    "rejected",
+    "pending",
+]
+
+
+class BrokerStatus(CamelModel):
+    """Connectivity / mode snapshot for the configured broker.
+
+    Fields:
+        broker: The active broker backend key (``'simulated'`` / ``'alpaca'``).
+        mode: Human-facing execution mode (``'simulated'`` / ``'paper'`` /
+            ``'live'``).
+        paper: ``True`` whenever orders are simulated or routed to a paper
+            sandbox; ``False`` only when real live trading is fully enabled.
+        connected: Whether the broker is reachable / usable right now.
+        live_enabled: Whether the full live-trading hard-gate is satisfied
+            (``broker == 'alpaca'`` AND ``alpaca_live`` AND the exact
+            ``broker_ack`` AND real keys). Ships ``False``.
+        base_url: The broker REST base URL in effect (the Alpaca PAPER endpoint
+            by default); ``None`` for the simulated broker.
+        message: Optional human-readable note (e.g. why live is disabled).
+        disclaimer: The mandatory broker disclaimer (:data:`BROKER_DISCLAIMER`).
+    """
+
+    broker: BrokerName
+    mode: Literal["simulated", "paper", "live"]
+    paper: bool
+    connected: bool
+    live_enabled: bool = False
+    base_url: Optional[str] = None
+    message: Optional[str] = None
+    disclaimer: str = BROKER_DISCLAIMER
+
+
+class BrokerAccount(CamelModel):
+    """A broker account summary (cash + equity + buying power).
+
+    Fields:
+        account_id: Opaque broker account identifier.
+        cash: Settled cash available.
+        equity: Total account equity (cash + position market value).
+        buying_power: Spendable buying power.
+        currency: ISO currency code (``'USD'``).
+        mode: Execution mode (``'simulated'`` / ``'paper'`` / ``'live'``).
+        paper: ``True`` for simulated/paper accounts, ``False`` only when live.
+        disclaimer: The mandatory broker disclaimer (:data:`BROKER_DISCLAIMER`).
+    """
+
+    account_id: str
+    cash: float
+    equity: float
+    buying_power: float
+    currency: str = "USD"
+    mode: Literal["simulated", "paper", "live"]
+    paper: bool
+    disclaimer: str = BROKER_DISCLAIMER
+
+
+class BrokerPosition(CamelModel):
+    """One open broker position marked to the latest price.
+
+    Fields:
+        symbol: Asset ticker (canonical upper-case).
+        qty: Units held (fractional allowed).
+        avg_entry_price: Average entry price per unit (``0`` when ``qty`` is 0).
+        current_price: Latest mark price per unit.
+        market_value: ``qty * current_price``.
+        cost_basis: Total dollars invested in the still-held units.
+        unrealized_pnl: ``market_value - cost_basis``.
+        unrealized_pnl_pct: ``unrealized_pnl / cost_basis * 100`` (0 if no cost).
+        paper: ``True`` for simulated/paper positions, ``False`` only when live.
+    """
+
+    symbol: str
+    qty: float
+    avg_entry_price: float
+    current_price: float
+    market_value: float
+    cost_basis: float
+    unrealized_pnl: float
+    unrealized_pnl_pct: float
+    paper: bool = True
+
+
+class BrokerOrder(CamelModel):
+    """A broker order (paper unless live is fully, deliberately enabled).
+
+    Fields:
+        id: Opaque order id.
+        symbol: Asset ticker (canonical upper-case).
+        side: ``'buy'`` or ``'sell'``.
+        type: Order type (only ``'market'`` is supported).
+        qty: Filled/ordered units (``None`` when the order was sized by
+            ``notional`` and not yet filled).
+        notional: Dollar amount the order was sized by (``None`` when sized by
+            ``qty``).
+        filled_qty: Units actually filled.
+        filled_avg_price: Average fill price per unit (``0`` until filled).
+        status: Order lifecycle status.
+        created_at: Unix timestamp in milliseconds when the order was created.
+        paper: ``True`` for simulated/paper orders, ``False`` only when live.
+        disclaimer: The mandatory broker disclaimer (:data:`BROKER_DISCLAIMER`).
+    """
+
+    id: str
+    symbol: str
+    side: BrokerOrderSide
+    type: BrokerOrderType = "market"
+    qty: Optional[float] = None
+    notional: Optional[float] = None
+    filled_qty: float = 0.0
+    filled_avg_price: float = 0.0
+    status: BrokerOrderStatus
+    created_at: int
+    paper: bool = True
+    disclaimer: str = BROKER_DISCLAIMER
+
+
+class BrokerOrderRequest(CamelModel):
+    """Request body for ``POST /api/broker/order`` (places a PAPER order).
+
+    Exactly one of ``notional`` or ``qty`` should be supplied (``notional``
+    wins if both are present). ``brokerAck`` is required only to attempt a LIVE
+    order; it is ignored in simulated/paper modes. A live order is refused
+    (HTTP 403) unless the full hard-gate is satisfied.
+
+    Fields:
+        symbol: Asset ticker (case-insensitive).
+        side: ``'buy'`` or ``'sell'``.
+        notional: Dollar amount to trade (sizes the order by dollars).
+        qty: Units to trade (used when ``notional`` is omitted).
+        type: Order type (only ``'market'`` is supported).
+        broker_ack: Live-trading acknowledgement; must exactly equal
+            ``"I understand this places real orders"`` to attempt a live order.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"symbol": "AAPL", "side": "buy", "notional": 100}
+            ]
+        }
+    )
+
+    symbol: str
+    side: BrokerOrderSide
+    notional: Optional[float] = None
+    qty: Optional[float] = None
+    type: BrokerOrderType = "market"
+    broker_ack: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
 # Auth DTOs (email/password + JWT — see docs/AUTH.md)
 # ---------------------------------------------------------------------------
 #
@@ -1378,6 +1564,18 @@ __all__ = [
     "BotEquityPoint",
     "BotMetrics",
     "BotRunResult",
+    # broker execution type aliases
+    "BROKER_DISCLAIMER",
+    "BrokerName",
+    "BrokerOrderSide",
+    "BrokerOrderType",
+    "BrokerOrderStatus",
+    # broker execution
+    "BrokerStatus",
+    "BrokerAccount",
+    "BrokerPosition",
+    "BrokerOrder",
+    "BrokerOrderRequest",
     # auth
     "UserDTO",
     "SignupRequest",

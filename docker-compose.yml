@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# GiffMeMoney — local / self-host stack (FastAPI backend + nginx-served SPA).
+#
+#   docker compose up --build
+#     backend  -> http://localhost:8000   (API + /docs + /ws)
+#     frontend -> http://localhost:8080   (the web app)
+#
+# Out of the box this runs the SAFE default path: simulated market data, the
+# simulated (paper) broker, and in-memory storage. No real money can move.
+# Every live capability is OPT-IN through the .env file below — copy
+# .env.example to .env and read docs/DEPLOY.md before changing anything.
+# Enabling REAL trading is a deliberate, multi-gate action documented there;
+# there is no one-click switch.
+# ---------------------------------------------------------------------------
+
+services:
+  backend:
+    build:
+      # Build context is the repo root so the Dockerfile can copy backend/.
+      context: .
+      dockerfile: backend/Dockerfile
+    image: giffmemoney-backend
+    # Loads every backend env var (provider/keys, broker mode, persistence,
+    # JWT secret, CORS...). Copy .env.example -> .env first. Missing .env is an
+    # error in compose; create it (even empty) to run pure-default/simulated.
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    # Persist the SQLite database file OUTSIDE the container when (and only when)
+    # PERSIST=sqlite is set in .env. Harmless on the default in-memory path —
+    # the file is simply never created. DB_URL defaults to sqlite:///giffmemoney.db
+    # (relative to the container WORKDIR /app), which this volume maps to ./data.
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # Baked into the bundle at build time (Vite inlines import.meta.env.*).
+        # Default points the browser at the backend published on the host above.
+        # If you instead want single-origin routing through nginx, set this to
+        # an empty string and the SPA will call /api + /ws on the frontend
+        # origin, which nginx.conf proxies to the backend service.
+        VITE_API_URL: "${VITE_API_URL:-http://localhost:8000}"
+    image: giffmemoney-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
