@@ -30,7 +30,16 @@ _provider = get_provider()
 _engine = AnalysisEngine(_provider)
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    summary="Liveness probe",
+    description=(
+        "Liveness probe for the frontend / deployment tooling. Returns "
+        "`{status: 'ok', time: <unix_ms>, universe: <asset_count>}` where "
+        "`time` is the current unix timestamp in milliseconds and `universe` "
+        "is the number of assets the provider knows about."
+    ),
+)
 def health() -> dict[str, object]:
     """Liveness probe reporting server time and universe size.
 
@@ -50,7 +59,16 @@ def health() -> dict[str, object]:
     }
 
 
-@router.get("/market/summary", response_model=MarketSummary)
+@router.get(
+    "/market/summary",
+    response_model=MarketSummary,
+    summary="Dashboard market summary",
+    description=(
+        "Return the dashboard `MarketSummary`: advance/decline breadth, "
+        "per-sector average change, synthetic per-class index levels, and the "
+        "top gainers / losers across the universe."
+    ),
+)
 def market_summary() -> MarketSummary:
     """Return the dashboard :class:`~app.schemas.MarketSummary`.
 

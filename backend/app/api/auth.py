@@ -49,6 +49,22 @@ def _auth_response(user: User) -> AuthResponse:
     response_model=AuthResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Register a new account and return a signed token",
+    description=(
+        "Create a new email/password account and return a signed JWT plus the "
+        "public user record. The password must be at least 6 characters; it is "
+        "PBKDF2-hashed and never stored or returned in plaintext.\n\n"
+        "Use the returned `token` as `Authorization: Bearer <token>` on the "
+        "`/api/auth/me` probe and on the invest/wallet routes (where it also "
+        "selects the caller's isolated `user:<id>` account).\n\n"
+        "**Status codes**\n"
+        "- `201` — account created.\n"
+        "- `400` — invalid input (malformed email, password shorter than 6 "
+        "characters, blank name) or an email that is already registered."
+    ),
+    responses={
+        201: {"description": "Account created; token + public user returned."},
+        400: {"description": "Invalid input or duplicate email."},
+    },
 )
 def signup(
     body: SignupRequest,
@@ -78,6 +94,21 @@ def signup(
     "/login",
     response_model=AuthResponse,
     summary="Authenticate with email + password and return a signed token",
+    description=(
+        "Verify an email/password pair and return a freshly signed JWT plus the "
+        "public user record. The email match is case-insensitive.\n\n"
+        "On failure the same `401` is returned whether the email is unknown or "
+        "the password is wrong — the API never reveals which, to avoid account "
+        "enumeration.\n\n"
+        "**Status codes**\n"
+        "- `200` — authenticated; token + public user returned.\n"
+        "- `401` — unknown email or wrong password (sets `WWW-Authenticate: "
+        "Bearer`)."
+    ),
+    responses={
+        200: {"description": "Authenticated; token + public user returned."},
+        401: {"description": "Unknown email or wrong password."},
+    },
 )
 def login(
     body: LoginRequest,
@@ -111,6 +142,19 @@ def login(
     "/me",
     response_model=UserDTO,
     summary="Return the current authenticated user",
+    description=(
+        "Return the public record for the caller identified by the "
+        "`Authorization: Bearer <token>` header. Useful as a session/token "
+        "probe on app load.\n\n"
+        "**Status codes**\n"
+        "- `200` — the authenticated user's public record.\n"
+        "- `401` — the Bearer token is missing, malformed, expired, or names a "
+        "user that no longer exists (sets `WWW-Authenticate: Bearer`)."
+    ),
+    responses={
+        200: {"description": "The authenticated user's public record."},
+        401: {"description": "Missing, invalid, or expired Bearer token."},
+    },
 )
 def me(user: User = Depends(current_user)) -> UserDTO:
     """Return the public record for the Bearer-authenticated user.

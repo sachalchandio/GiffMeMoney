@@ -53,18 +53,27 @@ def get_engine() -> AnalysisEngine:
     "/recommendations",
     response_model=list[Recommendation],
     summary="Ranked recommendations across the universe",
+    description=(
+        "Run the full quant model suite over the (optionally asset-class "
+        "filtered) universe and return the top `limit` assets as "
+        "`Recommendation` rows, ranked by composite score descending (rank "
+        "1 = best). Symbols whose analysis fails are silently skipped, so this "
+        "never errors on a single bad asset."
+    ),
 )
 def get_recommendations(
     limit: int = Query(
         default=12,
         ge=1,
         le=200,
-        description="Maximum number of recommendations to return.",
+        description="Maximum number of recommendations to return (1..200).",
+        examples=[12],
     ),
     asset_class: Optional[AssetClass] = Query(
         default=None,
         alias="assetClass",
-        description="Optional asset-class filter (equity / crypto / etf).",
+        description="Optional asset-class filter: one of `equity`, `crypto`, `etf`.",
+        examples=["equity"],
     ),
 ) -> list[Recommendation]:
     """Return the top ``limit`` assets ranked by composite score (descending).

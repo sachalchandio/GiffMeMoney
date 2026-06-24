@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.market.provider import get_provider
 from app.quant.backtest import BacktestMetrics, BacktestResult, backtest_positions
@@ -55,9 +55,26 @@ _provider = get_provider()
 _engine = AnalysisEngine(_provider)
 
 
-@router.get("", response_model=list[Asset])
+@router.get(
+    "",
+    response_model=list[Asset],
+    summary="List all assets",
+    description=(
+        "List every asset in the universe as `Asset` snapshots, optionally "
+        "filtered by asset class. An unknown `assetClass` simply yields an "
+        "empty list."
+    ),
+)
 def list_assets(
-    asset_class: Optional[str] = Query(default=None, alias="assetClass"),
+    asset_class: Optional[str] = Query(
+        default=None,
+        alias="assetClass",
+        description=(
+            "Optional asset-class filter (case-insensitive): one of "
+            "`equity`, `crypto` or `etf`."
+        ),
+        examples=["equity"],
+    ),
 ) -> list[Asset]:
     """List every asset, optionally filtered by asset class.
 
@@ -76,8 +93,21 @@ def list_assets(
     return assets
 
 
-@router.get("/{symbol}", response_model=Asset)
-def get_asset(symbol: str) -> Asset:
+@router.get(
+    "/{symbol}",
+    response_model=Asset,
+    summary="Get one asset",
+    description=(
+        "Return a single `Asset` snapshot (price, 24h change, market cap, "
+        "volume). Returns `404` for an unknown symbol."
+    ),
+)
+def get_asset(
+    symbol: str = Path(
+        description="Asset ticker (case-insensitive).",
+        examples=["AAPL"],
+    ),
+) -> Asset:
     """Return a single :class:`~app.schemas.Asset` snapshot.
 
     Args:
@@ -95,11 +125,36 @@ def get_asset(symbol: str) -> Asset:
         raise HTTPException(status_code=404, detail=f"Unknown symbol: {symbol}")
 
 
-@router.get("/{symbol}/candles", response_model=list[Candle])
+@router.get(
+    "/{symbol}/candles",
+    response_model=list[Candle],
+    summary="Get OHLCV candles",
+    description=(
+        "Return up to `limit` recent OHLCV `Candle`s for a symbol, ordered "
+        "oldest to newest (`t` is a unix timestamp in seconds). Returns `404` "
+        "for an unknown symbol."
+    ),
+)
 def get_candles(
-    symbol: str,
-    interval: str = Query(default="1d"),
-    limit: int = Query(default=365, ge=1, le=5000),
+    symbol: str = Path(
+        description="Asset ticker (case-insensitive).",
+        examples=["AAPL"],
+    ),
+    interval: str = Query(
+        default="1d",
+        description=(
+            "Candle interval. Only daily (`1d`) is simulated; accepted for "
+            "forward compatibility with real providers."
+        ),
+        examples=["1d"],
+    ),
+    limit: int = Query(
+        default=365,
+        ge=1,
+        le=5000,
+        description="Maximum number of most-recent candles to return (1..5000).",
+        examples=[365],
+    ),
 ) -> list[Candle]:
     """Return up to ``limit`` recent OHLCV candles for a symbol.
 
@@ -121,8 +176,23 @@ def get_candles(
         raise HTTPException(status_code=404, detail=f"Unknown symbol: {symbol}")
 
 
-@router.get("/{symbol}/analysis", response_model=AssetAnalysis)
-def get_analysis(symbol: str) -> AssetAnalysis:
+@router.get(
+    "/{symbol}/analysis",
+    response_model=AssetAnalysis,
+    summary="Full composite analysis",
+    description=(
+        "Run every registered quant model for the symbol and blend them into a "
+        "composite `AssetAnalysis`: composite score, recommendation stance, "
+        "5-horizon expected returns, risk metrics, per-strategy signals and a "
+        "narrative rationale. Returns `404` for an unknown symbol."
+    ),
+)
+def get_analysis(
+    symbol: str = Path(
+        description="Asset ticker (case-insensitive).",
+        examples=["AAPL"],
+    ),
+) -> AssetAnalysis:
     """Return the full composite :class:`~app.schemas.AssetAnalysis`.
 
     Runs every registered quant model for the symbol and blends them into a
@@ -144,11 +214,38 @@ def get_analysis(symbol: str) -> AssetAnalysis:
         raise HTTPException(status_code=404, detail=f"Unknown symbol: {symbol}")
 
 
-@router.get("/{symbol}/montecarlo", response_model=MonteCarloResult)
+@router.get(
+    "/{symbol}/montecarlo",
+    response_model=MonteCarloResult,
+    summary="Monte Carlo simulation",
+    description=(
+        "Run a GBM Monte Carlo simulation for a symbol over a horizon and "
+        "return a `MonteCarloResult`: price percentile bands over time, the "
+        "terminal-price distribution, and VaR / CVaR / probPositive. An "
+        "unknown `horizon` falls back to `1Y`. Returns `404` for an unknown "
+        "symbol."
+    ),
+)
 def get_montecarlo(
-    symbol: str,
-    horizon: str = Query(default="1Y"),
-    sims: int = Query(default=2000, ge=1, le=100000),
+    symbol: str = Path(
+        description="Asset ticker (case-insensitive).",
+        examples=["AAPL"],
+    ),
+    horizon: str = Query(
+        default="1Y",
+        description=(
+            "Projection horizon: one of `1D`, `1W`, `1M`, `1Y`, `5Y`. Unknown "
+            "values fall back to `1Y`."
+        ),
+        examples=["1Y"],
+    ),
+    sims: int = Query(
+        default=2000,
+        ge=1,
+        le=100000,
+        description="Number of simulated price paths (1..100000).",
+        examples=[2000],
+    ),
 ) -> MonteCarloResult:
     """Run a GBM Monte Carlo simulation for a symbol over a horizon.
 
@@ -172,12 +269,28 @@ def get_montecarlo(
         raise HTTPException(status_code=404, detail=f"Unknown symbol: {symbol}")
 
 
-@router.get("/{symbol}/backtest", response_model=BacktestResultDTO)
+@router.get(
+    "/{symbol}/backtest",
+    response_model=BacktestResultDTO,
+    summary="Backtest a strategy on this asset",
+    description=(
+        "Run one strategy's vectorized per-bar position series on this asset's "
+        "close history and return a `BacktestResultDTO`: the 14 realized "
+        "metrics for both the strategy and a buy & hold benchmark, plus a "
+        "downsampled equity curve. Strategies that are not time-backtestable "
+        "per-bar return a buy & hold-only result flagged `supported=false` "
+        "(not an error). Returns `404` for an unknown strategy id or symbol."
+    ),
+)
 def get_backtest(
-    symbol: str,
+    symbol: str = Path(
+        description="Asset ticker (case-insensitive).",
+        examples=["AAPL"],
+    ),
     strategy: str = Query(
         ...,
-        description="Strategy id to backtest on this asset (e.g. 'golden-cross').",
+        description="Strategy id from the catalog to backtest on this asset.",
+        examples=["golden-cross"],
     ),
 ) -> BacktestResultDTO:
     """Return the realized backtest of one strategy applied to this asset.

@@ -27,11 +27,14 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse
 from starlette.websockets import WebSocketState
 
 from app.api import (
     assets as assets_api,
     auth as auth_api,
+    bot as bot_api,
     invest as invest_api,
     market as market_api,
     portfolio as portfolio_api,
@@ -48,6 +51,86 @@ __all__ = ["app", "create_app", "manager"]
 # A single process-wide connection manager shared by the ``/ws`` endpoint and
 # the background tick loop.
 manager = ConnectionManager()
+
+
+# ---------------------------------------------------------------------------
+# OpenAPI / docs metadata
+# ---------------------------------------------------------------------------
+
+#: Rich, multi-paragraph API description rendered at the top of the docs page.
+API_DESCRIPTION = """\
+**GiffMeMoney** is an intelligent investment-advisory API that runs 18+ quant
+models over a deterministic market simulator. It powers asset analysis, ranked
+recommendations, a strategy library with backtesting, Markowitz portfolio
+optimization, and a fully simulated paper-trading brokerage (wallet, positions,
+P&L history and an allocation advisor).
+
+Every JSON payload is **camelCase** on the wire (request bodies accept both
+camelCase and snake_case). Concrete request/response examples are attached to
+each schema below.
+
+**Authentication.** Sign up or log in under `auth` to receive a signed JWT, then
+send it as `Authorization: Bearer <token>`. On the `invest`/`wallet`/`advisor`
+routes the token selects the caller's own isolated account; anonymous callers
+may instead pass an `X-Account-Id` header (or fall back to the shared `demo`
+account).
+
+**Real-time feed.** A WebSocket lives at `/ws` (not shown below): it pushes a
+full price snapshot on connect, then `subscribe`/`unsubscribe`/`set`/`ping`
+control messages drive periodic price ticks and heartbeats.
+
+> _Educational simulation on synthetic market data — not financial advice._
+"""
+
+#: Tag-group metadata: ordering + per-section descriptions for the docs sidebar.
+OPENAPI_TAGS: List[Dict[str, str]] = [
+    {"name": "market", "description": "Live prices, candles and the market summary dashboard."},
+    {"name": "assets", "description": "The tradable universe and per-asset composite analysis."},
+    {"name": "recommendations", "description": "Ranked investment ideas across the universe."},
+    {"name": "strategies", "description": "The strategy catalog, cross-asset rankings and backtests."},
+    {"name": "portfolio", "description": "Markowitz mean-variance optimization and the simulated portfolio view."},
+    {"name": "invest", "description": "The simulated brokerage: wallet, positions, P&L history and advisor."},
+    {"name": "wallet", "description": "Cash, cards and the account ledger (simulated funding)."},
+    {"name": "advisor", "description": "Risk-profiled allocation advice for a dollar amount."},
+    {"name": "bot", "description": "Simulated paper-trading auto-trader: preset modes, backtests and side-by-side comparison (synthetic data, no real funds)."},
+    {"name": "auth", "description": "Email/password signup, login and the current-user probe."},
+]
+
+
+def _scalar_html(openapi_url: str, title: str) -> str:
+    """Render the Scalar API-reference page for a given OpenAPI document.
+
+    Scalar is a modern, themeable replacement for Swagger UI. It is loaded from
+    the public CDN at view time (no extra Python dependency); the page simply
+    points it at our generated ``/openapi.json``.
+
+    Args:
+        openapi_url: URL of the OpenAPI document to render (e.g. ``/openapi.json``).
+        title: Page ``<title>``.
+
+    Returns:
+        A complete standalone HTML document as a string.
+    """
+    return f"""<!doctype html>
+<html>
+  <head>
+    <title>{title}</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {{ margin: 0; }}
+    </style>
+  </head>
+  <body>
+    <script id="api-reference" data-url="{openapi_url}"></script>
+    <script>
+      var configuration = {{ theme: "purple", layout: "modern", darkMode: true }};
+      var el = document.getElementById("api-reference");
+      el.dataset.configuration = JSON.stringify(configuration);
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>"""
 
 
 def _normalize_symbols(raw: Any) -> Optional[List[str]]:
@@ -151,10 +234,17 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title=settings.app_name,
         version="0.1.0",
-        description=(
-            "GiffMeMoney — an intelligent investment-advisory API running 18+ "
-            "quant models over a deterministic market simulator."
+        summary=(
+            "Quant investment-advisory API: analysis, recommendations, "
+            "strategies, portfolio optimization and a simulated brokerage."
         ),
+        description=API_DESCRIPTION,
+        openapi_tags=OPENAPI_TAGS,
+        contact={"name": "GiffMeMoney", "url": "https://github.com/"},
+        license_info={"name": "Educational / sandbox use"},
+        # The default Swagger UI is replaced by a modern Scalar page served at
+        # ``/docs`` below; ReDoc and the raw ``/openapi.json`` stay on defaults.
+        docs_url=None,
         lifespan=lifespan,
     )
 
@@ -181,9 +271,45 @@ def create_app() -> FastAPI:
         strategies_api.router,
         portfolio_api.router,
         invest_api.router,
+        bot_api.router,
         auth_api.router,
     ):
         _mount(application, api_router)
+
+    @application.get("/docs", include_in_schema=False)
+    async def scalar_docs() -> HTMLResponse:
+        """Serve the modern Scalar API-reference UI (replacing Swagger UI).
+
+        Renders the Scalar standalone reference against this app's generated
+        ``/openapi.json``. Excluded from the schema itself so it does not appear
+        as an API operation.
+
+        Returns:
+            The Scalar HTML page.
+        """
+        return HTMLResponse(
+            _scalar_html(
+                openapi_url=application.openapi_url or "/openapi.json",
+                title=f"{application.title} — API Reference",
+            )
+        )
+
+    @application.get("/swagger", include_in_schema=False)
+    async def swagger_docs() -> HTMLResponse:
+        """Serve the classic Swagger UI against this app's ``/openapi.json``.
+
+        The default ``/docs`` route is replaced by the modern Scalar page, so
+        this route preserves the familiar Swagger UI for callers that still
+        prefer it. Excluded from the schema itself so it does not appear as an
+        API operation.
+
+        Returns:
+            The Swagger UI HTML page.
+        """
+        return get_swagger_ui_html(
+            openapi_url=application.openapi_url or "/openapi.json",
+            title=f"{application.title} — Swagger UI",
+        )
 
     @application.websocket("/ws")
     async def ws_endpoint(websocket: WebSocket) -> None:
