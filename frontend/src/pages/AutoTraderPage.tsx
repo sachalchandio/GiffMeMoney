@@ -46,6 +46,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { StatCard } from '@/components/ui/StatCard';
 import { ChartEmpty } from '@/components/charts/ChartEmpty';
 import { ChartTooltip, type TooltipRow } from '@/components/charts/ChartTooltip';
+import { BrokerPanel } from '@/components/domain/BrokerPanel';
 import { useBotModes, useBotRun, useBotCompare } from '@/hooks/useBot';
 import { useChartTokens } from '@/theme/tokens';
 import type {
@@ -697,6 +698,12 @@ export default function AutoTraderPage(): JSX.Element {
           </p>
         </Card>
       )}
+
+      {/* Broker layer (go-live) — display-only mode/account/positions/orders with
+          a prominent paper/sim disclaimer. No "go live" control lives here. */}
+      <div className="mt-2 border-t border-border pt-4">
+        <BrokerPanel />
+      </div>
 
       {/* Footer disclaimer */}
       <div className="flex items-start gap-2 rounded-xl border border-border bg-surface-2/40 px-3 py-2">

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Menu, Search } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { BrokerStatusBadge } from '@/components/domain/BrokerStatusBadge';
 import { ConnDot } from './ConnDot';
 import { ThemeToggle } from './ThemeToggle';
 import { useAuth } from '@/lib/auth';
@@ -78,6 +79,11 @@ export function TopBar({ onOpenSidebar }: TopBarProps): JSX.Element {
         </form>
 
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Data: Simulated|Live + Broker: Paper|LIVE (display-only; hidden on
+              very narrow widths to keep the header uncluttered). */}
+          <div className="hidden md:flex">
+            <BrokerStatusBadge />
+          </div>
           <div className="hidden sm:flex">
             <ConnDot />
           </div>

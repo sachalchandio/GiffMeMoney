@@ -40,4 +40,10 @@ export const queryKeys = {
 
   // auto-trader bot
   botModes: ['botModes'] as const,
+
+  // broker (go-live)
+  brokerStatus: ['brokerStatus'] as const,
+  brokerAccount: ['brokerAccount'] as const,
+  brokerPositions: ['brokerPositions'] as const,
+  brokerOrders: ['brokerOrders'] as const,
 } as const;

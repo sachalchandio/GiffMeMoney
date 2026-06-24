@@ -13,3 +13,4 @@ export * from './usePortfolioState';
 export * from './usePortfolioHistory';
 export * from './useAdvisor';
 export * from './useBot';
+export * from './useBroker';

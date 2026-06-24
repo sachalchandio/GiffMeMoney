@@ -199,3 +199,7 @@ yarn-error.log*
 .vscode/*
 !.vscode/extensions.json
 Thumbs.db
+# Opt-in SQLite app DB + data volume (never commit real data)
+*.db
+*.sqlite
+/data/
