@@ -46,7 +46,7 @@ from app.db.models import (
     UserRow,
 )
 from app.db.session import SessionLocal, init_db
-from app.invest.store import Account, PositionState
+from app.invest.store import Account, PositionState, RiskPolicyState
 from app.schemas import SavedCard, Transaction
 
 __all__ = ["SqlUserStore", "SqlAccountStore"]
@@ -240,6 +240,7 @@ class SqlAccountStore:
                 cost_basis=float(pos.cost_basis),
                 realized_pnl=float(pos.realized_pnl),
                 opened_at=int(pos.opened_at),
+                high_water_price=float(pos.high_water_price or 0.0),
             )
         saved_cards = [
             SavedCard(
@@ -265,12 +266,34 @@ class SqlAccountStore:
             )
             for t in row.transactions
         ]
+        risk_policy = RiskPolicyState(
+            stop_loss_pct=(
+                float(row.stop_loss_pct) if row.stop_loss_pct is not None else None
+            ),
+            trailing_stop_pct=(
+                float(row.trailing_stop_pct)
+                if row.trailing_stop_pct is not None
+                else None
+            ),
+            take_profit_pct=(
+                float(row.take_profit_pct)
+                if row.take_profit_pct is not None
+                else None
+            ),
+            max_drawdown_pct=(
+                float(row.max_drawdown_pct)
+                if row.max_drawdown_pct is not None
+                else None
+            ),
+        )
         return Account(
             account_id=row.account_id,
             cash_balance=float(row.cash_balance),
             positions=positions,
             saved_cards=saved_cards,
             transactions=transactions,
+            risk_policy=risk_policy,
+            peak_value=float(row.peak_value or 0.0),
         )
 
     def get_account(self, account_id: str) -> Account:
@@ -334,6 +357,12 @@ class SqlAccountStore:
             row = AccountRow(account_id=account.account_id)
             session.add(row)
         row.cash_balance = float(account.cash_balance)
+        row.peak_value = float(account.peak_value)
+        policy = account.risk_policy
+        row.stop_loss_pct = policy.stop_loss_pct
+        row.trailing_stop_pct = policy.trailing_stop_pct
+        row.take_profit_pct = policy.take_profit_pct
+        row.max_drawdown_pct = policy.max_drawdown_pct
 
         # Positions: rewrite from the in-memory dict (delete-orphan handles
         # removed positions).
@@ -345,6 +374,7 @@ class SqlAccountStore:
                 cost_basis=float(state.cost_basis),
                 realized_pnl=float(state.realized_pnl),
                 opened_at=int(state.opened_at),
+                high_water_price=float(state.high_water_price),
             )
             for state in account.positions.values()
         ]

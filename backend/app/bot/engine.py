@@ -9,6 +9,15 @@ moves, no live broker is ever contacted, and every result carries the mandatory
 **never martingales** — it never increases a losing sleeve's weight to recover.
 Nothing here implies guaranteed profit.
 
+No-look-ahead / honesty caveat. The *working candidate set* (which handful of
+symbols can be traded) is chosen once up front using the engine's full-history
+composite — a reasonable as-of-window-start universe. But the **per-rebalance
+ranking** that decides which of those names to actually hold at each past bar is
+**point-in-time**: it uses only a trailing momentum score from ``prices[:t+1]``
+(:meth:`AutoTraderEngine._pit_scores`), never the future-peeking composite, so a
+past selection cannot leak information that did not yet exist. This is a
+SIMULATION on synthetic data with no real alpha — the disclaimer says so.
+
 The backtest is deliberately efficient (anti-stall):
 
     * A small candidate set is chosen ONCE up front by ranking the universe with
@@ -23,8 +32,9 @@ At each rebalance the engine:
 
     1. **Market analysis** — classifies the regime via
        :func:`app.quant.projection.detect_regime` on a synthetic index and scores
-       the candidates by the engine's composite (already cached).
-    2. **Selection** — keeps the top ``max_names`` candidates by composite.
+       the candidates by a POINT-IN-TIME trailing momentum (``prices[:t+1]``).
+    2. **Selection** — keeps the top ``max_names`` candidates by that
+       point-in-time score (NOT the look-ahead full-history composite).
     3. **Base weights** — per the mode objective via :mod:`app.quant.portfolio`
        (min-variance / max-Sharpe), a momentum rule, or risk-parity.
     4. **Rotation** — tilts the base weights toward sleeves with strong trailing
@@ -489,10 +499,22 @@ class AutoTraderEngine:
         if total_value <= _EPS:
             return cash, units, entry_price, sleeve_pnl, sleeve_trades
 
-        # --- (1) market analysis + selection: rank candidates by composite,
+        # --- (1) market analysis + selection: rank candidates POINT-IN-TIME,
         #         keep the top max_names for THIS rebalance ---
+        # LOOK-AHEAD FIX: the frozen ``candidate.score`` is a FULL-HISTORY
+        # composite (it sees prices AFTER bar t), so ranking by it at a past
+        # rebalance leaks the future. Rank instead by a trailing momentum score
+        # computed strictly from prices[:t+1] — information available as-of t.
+        # The frozen composite is used only as a tiny, stable tie-breaker so the
+        # initial (t == 0) rebalance, where there is no trailing window yet, is
+        # deterministic; it can never override a live point-in-time ranking.
         max_names = max(1, int(policy.mode.max_names))
-        order = sorted(range(k), key=lambda j: candidates[j].score, reverse=True)
+        pit = self._pit_scores(prices, t)
+        order = sorted(
+            range(k),
+            key=lambda j: (pit[j], candidates[j].score),
+            reverse=True,
+        )
         selected = order[: min(max_names, k)]
 
         # --- (2) base weights over the selected sleeves per the mode objective ---
@@ -580,6 +602,52 @@ class AutoTraderEngine:
             new_cash = cash
         new_cash = max(0.0, new_cash)
         return new_cash, new_units, new_entry, new_pnl, new_trades
+
+    # ------------------------------------------------------------------
+    # Point-in-time candidate ranking (selection signal, no look-ahead)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _pit_scores(prices: np.ndarray, t: int) -> np.ndarray:
+        """Trailing, point-in-time selection score per candidate as-of bar ``t``.
+
+        Replaces the look-ahead full-history composite for per-rebalance ranking.
+        Each candidate's score is a trailing risk-adjusted momentum (a Sharpe-
+        like ratio over a window ending AT bar ``t``) computed strictly from
+        ``prices[: t + 1]`` — no information after ``t`` is ever read, so ranking
+        by it at a past rebalance does not leak the future. At ``t == 0`` there
+        is no trailing window, so an all-zero (neutral) vector is returned and the
+        caller's frozen-composite tie-breaker chooses a deterministic order.
+
+        Args:
+            prices: The full ``(T, K)`` candidate price matrix (strictly positive).
+            t: The current bar index (only ``prices[: t + 1]`` is used).
+
+        Returns:
+            A length-``K`` finite score vector (higher = stronger trailing momentum).
+        """
+        k = prices.shape[1]
+        if t <= 0:
+            return np.zeros(k, dtype=np.float64)
+        win = min(TRADING_DAYS, t)
+        if win < 5:
+            # Too little history for a stable ratio: use the simple trailing
+            # return over what little window exists (still point-in-time).
+            seg = prices[: t + 1]
+            with np.errstate(divide="ignore", invalid="ignore"):
+                ret = seg[-1] / seg[0] - 1.0
+            return np.nan_to_num(ret, nan=0.0, posinf=0.0, neginf=0.0)
+        seg = prices[t - win : t + 1]  # (win+1, k), ends AT bar t (no look-ahead)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rets = seg[1:] / seg[:-1] - 1.0
+        rets = np.nan_to_num(rets, nan=0.0, posinf=0.0, neginf=0.0)
+        mean_d = np.mean(rets, axis=0)
+        std_d = np.std(rets, axis=0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            sharpe_like = np.where(std_d > _EPS, mean_d / std_d, 0.0) * math.sqrt(
+                TRADING_DAYS
+            )
+        return np.nan_to_num(sharpe_like, nan=0.0, posinf=0.0, neginf=0.0)
 
     # ------------------------------------------------------------------
     # Base weights per objective

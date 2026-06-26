@@ -871,6 +871,99 @@ class PortfolioState(CamelModel):
     total_pnl_pct: float
 
 
+#: The action a protective risk rule takes on a position.
+RiskActionType = Literal["stop_loss", "trailing_stop", "take_profit", "drawdown"]
+
+
+class RiskPolicy(CamelModel):
+    """Per-account post-buy loss controls (all optional, default OFF/``None``).
+
+    These are protective *exit* rules evaluated against already-held positions by
+    ``POST /api/portfolio/risk/apply``. They never block or change a buy — they
+    only trigger protective sells / de-risking when explicitly applied. This is a
+    SIMULATION on synthetic data: enabling these rules does not guarantee a
+    profit or prevent loss; they are mechanical, after-the-fact exits.
+
+    Every threshold is a **positive percent** (e.g. ``stopLossPct = 10`` means
+    "exit once down 10% from entry"). ``None`` means the rule is disabled, and
+    every field defaults to ``None`` so the feature is OFF unless opted into.
+
+    Fields:
+        stop_loss_pct: Sell a position once it is down more than this percent from
+            its blended entry (average-cost) price.
+        trailing_stop_pct: Sell a position once it falls more than this percent
+            below its observed high-water-mark price.
+        take_profit_pct: Sell a position once it is up more than this percent
+            above its blended entry price.
+        max_drawdown_pct: When total portfolio value is down more than this
+            percent from its peak, reduce exposure (sell the worst positions /
+            raise cash) until the drawdown is back within the limit.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "stopLossPct": 10,
+                    "trailingStopPct": 15,
+                    "takeProfitPct": 40,
+                    "maxDrawdownPct": 25,
+                }
+            ]
+        }
+    )
+
+    stop_loss_pct: Optional[float] = None
+    trailing_stop_pct: Optional[float] = None
+    take_profit_pct: Optional[float] = None
+    max_drawdown_pct: Optional[float] = None
+
+
+class RiskAction(CamelModel):
+    """One protective action triggered by :class:`RiskPolicy` evaluation.
+
+    Fields:
+        symbol: The position acted on.
+        action: Which rule fired (:data:`RiskActionType`).
+        reason: Human-readable explanation (e.g. ``"down 12.3% from entry; "
+            "stop-loss is 10%"``).
+        amount: Dollar proceeds of the protective sell credited back to cash.
+        units_sold: Units liquidated by the action.
+        price: Mark price at which the protective sell executed.
+        realized_pnl: Realized P&L on the protective sell (signed).
+    """
+
+    symbol: str
+    action: RiskActionType
+    reason: str
+    amount: float
+    units_sold: float
+    price: float
+    realized_pnl: float
+
+
+class RiskApplyResult(CamelModel):
+    """Result of running ``POST /api/portfolio/risk/apply``.
+
+    Fields:
+        actions: Protective actions taken (empty when nothing breached).
+        policy: Echo of the active :class:`RiskPolicy`.
+        state: The updated :class:`PortfolioState` after any protective sells.
+        triggered: ``True`` when at least one action fired.
+        disclaimer: Standard educational-simulation disclaimer.
+    """
+
+    actions: list[RiskAction] = Field(default_factory=list)
+    policy: RiskPolicy
+    state: PortfolioState
+    triggered: bool = False
+    disclaimer: str = (
+        "Educational simulation on synthetic market data — not financial "
+        "advice. Risk controls are mechanical, after-the-fact exits; they do "
+        "not guarantee a profit or prevent loss."
+    )
+
+
 class PortfolioHistoryPoint(CamelModel):
     """One step of the total-portfolio value curve. ``t`` is unix ms."""
 
@@ -915,6 +1008,11 @@ class AdviceRequest(CamelModel):
         amount: Dollar amount to allocate across recommended assets.
         risk_tolerance: Risk profile driving pick count + optimizer objective.
         asset_classes: Optional filter; ``None`` means consider all classes.
+        target_amount: Optional goal amount the caller hopes to reach (additive);
+            used only to flag a physically extreme / infeasible target.
+        horizon_days: Optional number of days the caller wants to reach
+            ``target_amount`` in (additive); pairs with ``target_amount`` for the
+            feasibility check.
     """
 
     model_config = ConfigDict(
@@ -932,6 +1030,8 @@ class AdviceRequest(CamelModel):
     amount: float
     risk_tolerance: RiskTolerance
     asset_classes: Optional[list[AssetClass]] = None
+    target_amount: Optional[float] = None
+    horizon_days: Optional[float] = None
 
 
 class AdviceItem(CamelModel):
@@ -957,14 +1057,37 @@ class AdviceItem(CamelModel):
 class AllocationAdvice(CamelModel):
     """The advisor's full basket recommendation.
 
+    The advisor splits the requested ``amount`` into a **risky sleeve** (the
+    ``items`` below) and a **cash sleeve** parked uninvested. The risky fraction
+    is driven by the risk profile *and* the market regime / conviction:
+    conservative profiles cap risky exposure and de-risk further in a bear regime
+    or on a weak top composite. This keeps the advice honest — it never implies
+    "always 100% invested".
+
+    Invariants:
+        * ``sum(item.weight for item in items) + cash_weight ~= 1``
+        * ``sum(item.amount for item in items) + cash_amount ~= amount``
+
     Fields:
-        items: Per-asset allocation legs (weights sum to ~1).
-        expected_return: Blended annual expected return (decimal).
-        expected_vol: Blended annual volatility (decimal).
-        sharpe: Blended Sharpe ratio of the basket.
-        horizons: Weight-blended 5-horizon expected returns for the basket.
+        items: Per-asset allocation legs (weights sum to the risky fraction,
+            i.e. ``1 - cash_weight``).
+        expected_return: Blended annual expected return of the **risky sleeve**
+            (decimal); cash earns nothing in this simulation.
+        expected_vol: Blended annual volatility of the risky sleeve (decimal).
+        sharpe: Blended Sharpe ratio of the risky sleeve.
+        horizons: Weight-blended 5-horizon expected returns for the risky sleeve
+            (including the bull/base/bear scenario fan and the CVaR downside).
         risk_tolerance: Echo of the requested risk profile.
         amount: Echo of the requested dollar amount.
+        cash_weight: Fraction of ``amount`` held as uninvested cash, in
+            ``[0, 1]`` (``1 - sum of item weights``; additive).
+        cash_amount: Dollars held as uninvested cash (``cash_weight * amount``;
+            additive).
+        synthetic_data: Always ``True`` — the advice is computed on synthetic
+            (made-up) market data, not a real forecast (honesty flag; additive).
+        target_warning: Optional plain-English warning when the request implies a
+            physically extreme / infeasible target (``None`` for sane asks;
+            additive).
     """
 
     items: list[AdviceItem] = Field(default_factory=list)
@@ -974,6 +1097,10 @@ class AllocationAdvice(CamelModel):
     horizons: list[ExpectedReturn] = Field(default_factory=list)
     risk_tolerance: RiskTolerance
     amount: float
+    cash_weight: float = 0.0
+    cash_amount: float = 0.0
+    synthetic_data: bool = True
+    target_warning: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -1198,6 +1325,12 @@ class BotRunResult(CamelModel):
         worst_strategy: Key of the worst-contributing sleeve (``None`` if none).
         regime_timeline: The regime label at each rebalance, in order.
         disclaimer: The mandatory simulation disclaimer (:data:`BOT_DISCLAIMER`).
+        synthetic_data: Always ``True`` — the backtest runs on synthetic
+            (made-up) market data, so results are not a real edge (honesty flag;
+            additive).
+        target_warning: Optional plain-English warning when the run implies a
+            physically extreme / infeasible target (``None`` for sane asks;
+            additive).
     """
 
     mode: BotMode
@@ -1210,6 +1343,8 @@ class BotRunResult(CamelModel):
     worst_strategy: Optional[str] = None
     regime_timeline: list[str] = Field(default_factory=list)
     disclaimer: str = BOT_DISCLAIMER
+    synthetic_data: bool = True
+    target_warning: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -1541,6 +1676,10 @@ __all__ = [
     "SellRequest",
     "Position",
     "PortfolioState",
+    "RiskActionType",
+    "RiskPolicy",
+    "RiskAction",
+    "RiskApplyResult",
     "PortfolioHistoryPoint",
     "PositionHistoryPoint",
     "PositionHistory",

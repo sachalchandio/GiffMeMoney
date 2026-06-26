@@ -78,6 +78,11 @@ class AccountRow(Base):
     Columns:
         account_id: The account identifier (default ``'demo'``) — primary key.
         cash_balance: Uninvested cash available to spend or withdraw.
+        peak_value: Highest total portfolio value observed (drawdown breaker).
+        stop_loss_pct: Per-account stop-loss threshold (``NULL`` = OFF).
+        trailing_stop_pct: Per-account trailing-stop threshold (``NULL`` = OFF).
+        take_profit_pct: Per-account take-profit threshold (``NULL`` = OFF).
+        max_drawdown_pct: Per-account drawdown circuit-breaker (``NULL`` = OFF).
 
     Relationships:
         positions: Open positions keyed by symbol.
@@ -91,6 +96,11 @@ class AccountRow(Base):
     cash_balance: Mapped[float] = mapped_column(
         Float, nullable=False, default=0.0
     )
+    peak_value: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    stop_loss_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trailing_stop_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    take_profit_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_drawdown_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     positions: Mapped[list["PositionRow"]] = relationship(
         back_populates="account",
@@ -122,6 +132,7 @@ class PositionRow(Base):
         cost_basis: Dollars currently invested in the still-held units.
         realized_pnl: Cumulative realized P&L from prior sells of this symbol.
         opened_at: Unix timestamp in **milliseconds** the position opened.
+        high_water_price: Highest mark price ever observed (trailing-stop peak).
     """
 
     __tablename__ = "positions"
@@ -140,6 +151,9 @@ class PositionRow(Base):
         Float, nullable=False, default=0.0
     )
     opened_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    high_water_price: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0
+    )
 
     account: Mapped["AccountRow"] = relationship(back_populates="positions")
 

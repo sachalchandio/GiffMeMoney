@@ -276,6 +276,85 @@ def test_rebalance_only_mode_applies_no_loss_chasing_tilt(
     assert math.isclose(float(np.sum(tilted)), 1.0, abs_tol=1e-9)
 
 
+# ---------------------------------------------------------------------------
+# No look-ahead: per-rebalance selection is point-in-time
+# ---------------------------------------------------------------------------
+
+
+def test_pit_scores_use_only_data_up_to_t(engine: AutoTraderEngine) -> None:
+    """``_pit_scores`` at bar t depends only on prices[:t+1] (no look-ahead).
+
+    Mutating prices strictly AFTER bar ``t`` must not change the point-in-time
+    score computed at ``t`` — the defining property of a no-look-ahead signal.
+    """
+    rng = np.random.default_rng(3)
+    n = 120
+    cols = [
+        100.0 * np.cumprod(1.0 + (d + rng.normal(0.0, 0.005, size=n)))
+        for d in (0.004, 0.001, -0.003)
+    ]
+    prices = np.column_stack(cols)
+    t = 60
+
+    before = engine._pit_scores(prices, t)
+
+    # Corrupt every bar AFTER t with a wild spike; the as-of-t score is unchanged.
+    future = prices.copy()
+    future[t + 1 :] *= 5.0
+    after = engine._pit_scores(future, t)
+
+    assert np.allclose(before, after)
+    assert np.all(np.isfinite(before))
+
+
+def test_pit_ranking_differs_from_full_history_ranking(
+    engine: AutoTraderEngine,
+) -> None:
+    """The point-in-time ranking is genuinely different from the full-history one.
+
+    A crafted set where the eventual full-history winner is FALLING through the
+    early window (it only rallies AFTER bar ``t``) proves the new selection ranks
+    by what was known at the early rebalance — not by the future-peeking
+    full-history order the old engine froze and reused at every past rebalance.
+    """
+    rng = np.random.default_rng(5)
+    n = 120
+    t = 50  # an early rebalance, strictly before A's late rally
+
+    def _series(daily: np.ndarray) -> np.ndarray:
+        return 100.0 * np.cumprod(1.0 + daily)
+
+    # Sleeve A: DOWN through the early window (negative drift), then a violent late
+    # rally so it wins the full-history race — but is the worst as-of t.
+    a_daily = np.concatenate(
+        [
+            -0.004 + rng.normal(0.0, 0.003, size=t + 1),  # falling up to & incl. t
+            0.05 + rng.normal(0.0, 0.003, size=n - t - 1),  # explosive after t
+        ]
+    )
+    # Sleeve B: steady, strong UP climb through the early window (early leader).
+    b_daily = 0.006 + rng.normal(0.0, 0.003, size=n)
+    # Sleeve C: gentle positive drift throughout (a stable middle).
+    c_daily = 0.002 + rng.normal(0.0, 0.003, size=n)
+    prices = np.column_stack([_series(a_daily), _series(b_daily), _series(c_daily)])
+
+    # Point-in-time order as-of the early rebalance t (uses only prices[:t+1]).
+    pit = engine._pit_scores(prices, t)
+    pit_order = sorted(range(3), key=lambda j: pit[j], reverse=True)
+
+    # The OLD engine ranked by a full-history score; the full-window trailing
+    # return is a faithful stand-in — A wins it purely because of its late rally.
+    full_hist = prices[-1] / prices[0] - 1.0
+    full_order = sorted(range(3), key=lambda j: full_hist[j], reverse=True)
+
+    assert full_order[0] == 0  # A is the full-history (look-ahead) winner
+    # As-of t, A has been FALLING, so it must rank last point-in-time — the two
+    # rankings genuinely disagree, which is exactly the look-ahead being removed.
+    assert pit_order[0] != 0
+    assert pit_order[-1] == 0
+    assert pit_order != full_order
+
+
 def test_attribution_builder_marks_best_and_worst() -> None:
     """The attribution builder flags the top winner best and bottom loser worst."""
     stats = [
@@ -369,6 +448,13 @@ def test_disclaimer_text_is_honest_and_specific() -> None:
     # And it never implies guaranteed profit.
     assert "guarantee" not in text
     assert "guaranteed profit" not in text
+
+
+def test_backtest_marks_results_as_synthetic(run_result: BotRunResult) -> None:
+    """Every run honestly flags itself as synthetic data with no implied target."""
+    assert run_result.synthetic_data is True
+    # No target was requested, so there is no infeasible-target warning.
+    assert run_result.target_warning is None
 
 
 def test_run_result_carries_disclaimer_by_default() -> None:

@@ -16,6 +16,7 @@ import type {
   PortfolioHistory,
   PortfolioState,
   Position,
+  RiskPolicy,
   Transaction,
   Wallet,
 } from '@/lib/types';
@@ -27,6 +28,7 @@ const getPortfolioHistory = vi.fn<(points?: number) => Promise<PortfolioHistory>
 const getTransactions = vi.fn<() => Promise<Transaction[]>>();
 const listAssets = vi.fn<() => Promise<Asset[]>>();
 const getCandles = vi.fn<() => Promise<Candle[]>>();
+const getRiskPolicy = vi.fn<() => Promise<RiskPolicy>>();
 
 vi.mock('@/lib/api', () => ({
   api: {
@@ -36,6 +38,7 @@ vi.mock('@/lib/api', () => ({
     getTransactions: () => getTransactions(),
     listAssets: () => listAssets(),
     getCandles: () => getCandles(),
+    getRiskPolicy: () => getRiskPolicy(),
   },
 }));
 
@@ -148,6 +151,12 @@ describe('InvestPage', () => {
     getPortfolioState.mockResolvedValue(STATE);
     getPortfolioHistory.mockResolvedValue(HISTORY);
     getTransactions.mockResolvedValue(TXNS);
+    getRiskPolicy.mockResolvedValue({
+      stopLossPct: null,
+      trailingStopPct: null,
+      takeProfitPct: null,
+      maxDrawdownPct: null,
+    });
     listAssets.mockResolvedValue([makeAsset('AAPL', 'AAPL Inc.'), makeAsset('MSFT', 'MSFT Inc.')]);
     getCandles.mockResolvedValue([
       { t: 1, o: 1, h: 1, l: 1, c: 100, v: 1 },
@@ -170,6 +179,22 @@ describe('InvestPage', () => {
     expect(screen.getByText('Build your allocation')).toBeInTheDocument();
     expect(screen.getByText('Where to invest now')).toBeInTheDocument();
     expect(screen.getByText('Activity')).toBeInTheDocument();
+  });
+
+  it('renders the risk-protections panel with the four rules and an apply action', async () => {
+    renderPage();
+    expect(await screen.findByText('Risk protections')).toBeInTheDocument();
+    // Each of the four post-buy loss controls is offered.
+    expect(screen.getByText('Stop-loss')).toBeInTheDocument();
+    expect(screen.getByText('Trailing stop')).toBeInTheDocument();
+    expect(screen.getByText('Take-profit')).toBeInTheDocument();
+    expect(screen.getByText('Max drawdown')).toBeInTheDocument();
+    // Save + Apply actions are present; honesty disclaimer is shown.
+    expect(screen.getByRole('button', { name: /save policy/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /apply protections/i })).toBeInTheDocument();
+    expect(
+      screen.getByText(/do not guarantee a profit or prevent loss/i),
+    ).toBeInTheDocument();
   });
 
   it('renders the open position and its allocation', async () => {
