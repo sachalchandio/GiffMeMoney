@@ -1,0 +1,317 @@
+<!doctype html><html><head><meta charset="utf-8"><title>GiffMeMoney — Blueprint</title>
+<style>html,body{margin:0;background:#080d18;}</style></head><body>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 1780" width="1700" font-family="Segoe UI, sans-serif">
+<defs>
+  <pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse">
+    <path d="M34 0H0V34" fill="none" stroke="#121a30" stroke-width="1"/>
+  </pattern>
+  <linearGradient id="ge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2bd49b"/><stop offset="1" stop-color="#0f9e6e"/></linearGradient>
+  <marker id="aE" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto"><path d="M0 0L6.5 3L0 6Z" fill="#3bbf8e"/></marker>
+  <marker id="aS" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto"><path d="M0 0L6.5 3L0 6Z" fill="#5a6a8a"/></marker>
+  <marker id="aR" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto"><path d="M0 0L6.5 3L0 6Z" fill="#ff5d62"/></marker>
+  <marker id="aI" markerWidth="8" markerHeight="8" refX="6.5" refY="3" orient="auto"><path d="M0 0L6.5 3L0 6Z" fill="#8b7dff"/></marker>
+</defs>
+<rect width="1700" height="1780" fill="#080d18"/>
+<rect width="1700" height="1780" fill="url(#grid)"/>
+<!-- corner registration ticks -->
+<g stroke="#34507a" stroke-width="1.2" opacity="0.8">
+  <path d="M20 44V20H44"/><path d="M1656 20H1680V44"/><path d="M20 1736V1760H44"/><path d="M1656 1760H1680V1736"/>
+</g>
+
+<!-- ===== TITLE ===== -->
+<g>
+  <rect x="40" y="34" width="38" height="38" rx="11" fill="url(#ge)"/>
+  <text x="59" y="60" text-anchor="middle" font-size="20" font-weight="900" fill="#06231a">G</text>
+  <text x="92" y="52" font-size="23" font-weight="800" fill="#e7eefb" letter-spacing="-0.5">Giff<tspan fill="#2bd49b">Me</tspan>Money — system blueprint</text>
+  <text x="92" y="72" font-size="12" fill="#7b88a0" font-family="Consolas, monospace">every path · every decision · every safety gate — from first login to the gated road to real money</text>
+</g>
+<!-- legend (right) -->
+<g font-size="11" font-family="Consolas, monospace" fill="#8c99b0">
+  <g transform="translate(1140,40)">
+    <rect x="0" y="0" width="22" height="13" rx="7" fill="#0f2a22" stroke="#2bd49b"/><text x="28" y="11">start / buy</text>
+    <rect x="118" y="0" width="22" height="13" rx="4" fill="#121a30" stroke="#33405e"/><text x="146" y="11">action</text>
+    <rect x="222" y="-1" width="14" height="14" rx="2" fill="#231a08" stroke="#f3a712" transform="rotate(45 229 6)"/><text x="248" y="11">decision</text>
+  </g>
+  <g transform="translate(1140,62)">
+    <rect x="0" y="0" width="22" height="13" rx="3" fill="#1b1733" stroke="#8b7dff"/><text x="28" y="11">engine</text>
+    <rect x="100" y="0" width="22" height="13" rx="3" fill="#2a1012" stroke="#ff5d62"/><text x="128" y="11">stop / error</text>
+    <rect x="226" y="0" width="22" height="13" rx="3" fill="#1a0d11" stroke="#ff5d62" stroke-dasharray="4 3"/><text x="254" y="11">safety gate</text>
+  </g>
+</g>
+<line x1="40" y1="92" x2="1660" y2="92" stroke="#1c2742" stroke-width="1.2"/>
+
+<!-- ===== TRACK LABELS + DIVIDERS ===== -->
+<g font-family="Consolas, monospace" font-size="12" font-weight="700" fill="#5f6f90">
+  <text x="42" y="150" letter-spacing="2">A · ENTER &amp; ANALYZE</text>
+  <text x="42" y="470" letter-spacing="2">B · INVEST</text>
+  <text x="42" y="800" letter-spacing="2">C · PROTECT</text>
+  <text x="42" y="1110" letter-spacing="2">D · AUTOMATE</text>
+  <text x="42" y="1420" letter-spacing="2">E · GO LIVE</text>
+</g>
+<g stroke="#141d33" stroke-width="1">
+  <line x1="40" y1="420" x2="1660" y2="420"/><line x1="40" y1="745" x2="1660" y2="745"/>
+  <line x1="40" y1="1060" x2="1660" y2="1060"/><line x1="40" y1="1370" x2="1660" y2="1370"/>
+</g>
+
+<!-- ============ helpers are inlined ============ -->
+<!-- ====================== TRACK A : ENTER & ANALYZE ====================== -->
+<!-- data feeder -->
+<g>
+  <rect x="470" y="170" width="170" height="40" rx="8" fill="#0f1830" stroke="#8b7dff" stroke-width="1.1"/>
+  <text x="555" y="186" text-anchor="middle" font-size="10.5" font-family="Consolas, monospace" fill="#7fe9c0">Market data</text>
+  <text x="555" y="200" text-anchor="middle" font-size="9" font-family="Consolas, monospace" fill="#7b88a0">simulated · or live keys</text>
+</g>
+<!-- nodes baseline y=270 -->
+<!-- A1 start -->
+<rect x="120" y="248" width="120" height="44" rx="22" fill="#0f2a22" stroke="#2bd49b" stroke-width="1.4"/>
+<text x="180" y="274" text-anchor="middle" font-size="12" fill="#bff3e0" font-weight="600">Open app</text>
+<!-- A2 login -->
+<rect x="300" y="248" width="150" height="44" rx="9" fill="#121a30" stroke="#33405e"/>
+<text x="375" y="266" text-anchor="middle" font-size="11" fill="#dbe4f0">Login · sign up</text>
+<text x="375" y="281" text-anchor="middle" font-size="10" fill="#8c99b0">or use demo</text>
+<!-- A3 decision Auth ok -->
+<polygon points="555,238 607,272 555,306 503,272" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="555" y="269" text-anchor="middle" font-size="10" fill="#f6cf86">Auth</text>
+<text x="555" y="282" text-anchor="middle" font-size="10" fill="#f6cf86">ok?</text>
+<!-- A3 error offshoot -->
+<rect x="480" y="338" width="150" height="38" rx="8" fill="#2a1012" stroke="#ff5d62"/>
+<text x="555" y="361" text-anchor="middle" font-size="10.5" fill="#ffc3c5">Bad credentials · retry</text>
+<!-- A4 engine (wide) -->
+<rect x="660" y="240" width="250" height="60" rx="10" fill="#1b1733" stroke="#8b7dff" stroke-width="1.3"/>
+<text x="785" y="260" text-anchor="middle" font-size="11.5" fill="#cfc8ff" font-weight="700" font-family="Consolas, monospace">AI ENGINE</text>
+<text x="785" y="276" text-anchor="middle" font-size="9.3" fill="#a99cff" font-family="Consolas, monospace">73 signals → regime → composite</text>
+<text x="785" y="290" text-anchor="middle" font-size="9.3" fill="#a99cff" font-family="Consolas, monospace">→ projection(capped) → CVaR</text>
+<!-- A5 recommendation -->
+<rect x="960" y="248" width="170" height="44" rx="9" fill="#121a30" stroke="#33405e"/>
+<text x="1045" y="266" text-anchor="middle" font-size="11" fill="#dbe4f0">Recommendation</text>
+<text x="1045" y="281" text-anchor="middle" font-size="10" fill="#8c99b0">+ why · 5 horizons</text>
+<!-- A6 dashboard -->
+<rect x="1180" y="248" width="150" height="44" rx="9" fill="#121a30" stroke="#33405e"/>
+<text x="1255" y="266" text-anchor="middle" font-size="11" fill="#dbe4f0">Dashboard</text>
+<text x="1255" y="281" text-anchor="middle" font-size="10" fill="#8c99b0">recs · detail · screener</text>
+<!-- A7 -> to invest -->
+<rect x="1380" y="248" width="150" height="44" rx="9" fill="#0f2a22" stroke="#2bd49b"/>
+<text x="1455" y="274" text-anchor="middle" font-size="11" fill="#bff3e0">Choose a path ▾</text>
+<!-- connectors A -->
+<g fill="none">
+  <path d="M240 270H300" stroke="#3bbf8e" stroke-width="1.6" marker-end="url(#aE)"/>
+  <path d="M450 270H503" stroke="#3bbf8e" stroke-width="1.6" marker-end="url(#aE)"/>
+  <path d="M540 300L520 338" stroke="#ff5d62" stroke-width="1.4" marker-end="url(#aR)"/>
+  <path d="M480 357H360 V292" stroke="#ff5d62" stroke-width="1.3" marker-end="url(#aR)" opacity="0.85"/>
+  <path d="M607 272H660" stroke="#3bbf8e" stroke-width="1.6" marker-end="url(#aE)"/>
+  <path d="M555 210V238" stroke="#8b7dff" stroke-width="1.4" marker-end="url(#aI)"/>
+  <path d="M910 270H960" stroke="#8b7dff" stroke-width="1.6" marker-end="url(#aI)"/>
+  <path d="M1130 270H1180" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M1330 270H1380" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+</g>
+<text x="630" y="262" font-size="9" font-family="Consolas, monospace" fill="#3bbf8e">yes</text>
+<text x="527" y="330" font-size="9" font-family="Consolas, monospace" fill="#ff5d62">no</text>
+
+<!-- ====================== TRACK B : INVEST ====================== -->
+<!-- baseline y=560 -->
+<rect x="120" y="538" width="120" height="44" rx="22" fill="#0f2a22" stroke="#2bd49b" stroke-width="1.3"/>
+<text x="180" y="564" text-anchor="middle" font-size="12" fill="#bff3e0" font-weight="600">Invest</text>
+<!-- B2 funded? -->
+<polygon points="320,524 376,558 320,592 264,558" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="320" y="555" text-anchor="middle" font-size="9.6" fill="#f6cf86">Wallet</text>
+<text x="320" y="567" text-anchor="middle" font-size="9.6" fill="#f6cf86">funded?</text>
+<!-- fund sub-flow (below) -->
+<rect x="250" y="628" width="140" height="38" rx="8" fill="#121a30" stroke="#33405e"/>
+<text x="320" y="645" text-anchor="middle" font-size="10.5" fill="#dbe4f0">Add funds · card</text>
+<text x="320" y="658" text-anchor="middle" font-size="9" fill="#8c99b0">$20 quick-chip</text>
+<polygon points="470,628 520,652 470,676 420,652" fill="#231a08" stroke="#f3a712" stroke-width="1.2"/>
+<text x="470" y="649" text-anchor="middle" font-size="9" fill="#f6cf86">Luhn</text>
+<text x="470" y="660" text-anchor="middle" font-size="9" fill="#f6cf86">ok?</text>
+<rect x="430" y="700" width="120" height="34" rx="7" fill="#2a1012" stroke="#ff5d62"/>
+<text x="490" y="721" text-anchor="middle" font-size="9.6" fill="#ffc3c5">Invalid · retry</text>
+<rect x="560" y="633" width="135" height="38" rx="8" fill="#121a30" stroke="#33405e"/>
+<text x="627" y="650" text-anchor="middle" font-size="10" fill="#dbe4f0">Deposit · sandbox</text>
+<text x="627" y="663" text-anchor="middle" font-size="8.8" fill="#8c99b0">no real charge</text>
+<!-- B3 advisor/manual decision -->
+<polygon points="470,524 530,558 470,592 410,558" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="470" y="555" text-anchor="middle" font-size="9.4" fill="#f6cf86">Manual or</text>
+<text x="470" y="567" text-anchor="middle" font-size="9.4" fill="#f6cf86">advisor?</text>
+<!-- B4 advisor engine -->
+<rect x="575" y="536" width="200" height="48" rx="9" fill="#1b1733" stroke="#8b7dff" stroke-width="1.2"/>
+<text x="675" y="555" text-anchor="middle" font-size="10.5" fill="#cfc8ff" font-weight="700" font-family="Consolas, monospace">ADVISOR</text>
+<text x="675" y="570" text-anchor="middle" font-size="8.8" fill="#a99cff" font-family="Consolas, monospace">CVaR optimizer + per-name cap</text>
+<!-- B5 bear regime decision -->
+<polygon points="845,524 905,558 845,592 785,558" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="845" y="555" text-anchor="middle" font-size="9.2" fill="#f6cf86">Bear /</text>
+<text x="845" y="567" text-anchor="middle" font-size="9.2" fill="#f6cf86">weak?</text>
+<!-- cash sleeve (amber) -->
+<rect x="785" y="628" width="120" height="38" rx="8" fill="#231a08" stroke="#f3a712"/>
+<text x="845" y="645" text-anchor="middle" font-size="10.5" fill="#f6cf86">Hold CASH sleeve</text>
+<text x="845" y="658" text-anchor="middle" font-size="8.8" fill="#caa86a">de-risk exposure</text>
+<!-- B6 basket -->
+<rect x="950" y="534" width="185" height="52" rx="9" fill="#121a30" stroke="#33405e"/>
+<text x="1042" y="552" text-anchor="middle" font-size="10.5" fill="#dbe4f0">Basket</text>
+<text x="1042" y="566" text-anchor="middle" font-size="8.8" fill="#8c99b0">weights + CASH% · no dust</text>
+<text x="1042" y="578" text-anchor="middle" font-size="8.8" fill="#8c99b0">bull/base/bear + CVaR</text>
+<!-- B7 cash>=total? -->
+<polygon points="1235,524 1291,558 1235,592 1179,558" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="1235" y="555" text-anchor="middle" font-size="9.2" fill="#f6cf86">Cash ≥</text>
+<text x="1235" y="567" text-anchor="middle" font-size="9.2" fill="#f6cf86">total?</text>
+<rect x="1175" y="628" width="140" height="34" rx="7" fill="#2a1012" stroke="#ff5d62"/>
+<text x="1245" y="649" text-anchor="middle" font-size="9.6" fill="#ffc3c5">Insufficient · lower</text>
+<!-- B8 buy -->
+<rect x="1360" y="536" width="150" height="48" rx="9" fill="#0f2a22" stroke="#2bd49b" stroke-width="1.3"/>
+<text x="1435" y="555" text-anchor="middle" font-size="11" fill="#bff3e0" font-weight="600">Buy positions</text>
+<text x="1435" y="569" text-anchor="middle" font-size="9" fill="#79c9aa">cost basis · live P&amp;L</text>
+<!-- connectors B -->
+<g fill="none">
+  <path d="M240 560H264" stroke="#3bbf8e" stroke-width="1.6" marker-end="url(#aE)"/>
+  <path d="M320 592V628" stroke="#5a6a8a" stroke-width="1.4" marker-end="url(#aS)"/>
+  <path d="M390 647H420" stroke="#5a6a8a" stroke-width="1.4" marker-end="url(#aS)"/>
+  <path d="M470 676L490 700" stroke="#ff5d62" stroke-width="1.3" marker-end="url(#aR)"/>
+  <path d="M430 717H410 V652" stroke="#ff5d62" stroke-width="1.2" marker-end="url(#aR)" opacity="0.8"/>
+  <path d="M520 652H560" stroke="#3bbf8e" stroke-width="1.4" marker-end="url(#aE)"/>
+  <path d="M627 633V592 L500 575" stroke="#3bbf8e" stroke-width="1.3" marker-end="url(#aE)"/>
+  <path d="M376 558H410" stroke="#3bbf8e" stroke-width="1.5" marker-end="url(#aE)"/>
+  <path d="M530 558H575" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M775 560H785" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M845 592V628" stroke="#f3a712" stroke-width="1.4" marker-end="url(#aR)"/>
+  <path d="M905 558H950" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M845 628 H935 V586" stroke="#f3a712" stroke-width="1.3" marker-end="url(#aS)" opacity="0.8"/>
+  <path d="M1135 560H1179" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M1235 592V628" stroke="#ff5d62" stroke-width="1.3" marker-end="url(#aR)"/>
+  <path d="M1175 645 H1090 V586" stroke="#ff5d62" stroke-width="1.2" marker-end="url(#aR)" opacity="0.8"/>
+  <path d="M1291 558H1360" stroke="#3bbf8e" stroke-width="1.6" marker-end="url(#aE)"/>
+</g>
+<text x="246" y="552" font-size="9" font-family="Consolas, monospace" fill="#ff5d62">no</text>
+<text x="386" y="552" font-size="9" font-family="Consolas, monospace" fill="#3bbf8e">yes</text>
+<text x="1300" y="552" font-size="9" font-family="Consolas, monospace" fill="#3bbf8e">yes</text>
+<text x="852" y="616" font-size="9" font-family="Consolas, monospace" fill="#f3a712">yes</text>
+
+<!-- ====================== TRACK C : PROTECT ====================== -->
+<!-- baseline y=870 -->
+<rect x="120" y="848" width="140" height="44" rx="9" fill="#121a30" stroke="#33405e"/>
+<text x="190" y="866" text-anchor="middle" font-size="11" fill="#dbe4f0">Live P&amp;L</text>
+<text x="190" y="881" text-anchor="middle" font-size="9.5" fill="#8c99b0">+ attribution</text>
+<polygon points="345,836 405,870 345,904 285,870" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="345" y="867" text-anchor="middle" font-size="9.2" fill="#f6cf86">Set loss</text>
+<text x="345" y="879" text-anchor="middle" font-size="9.2" fill="#f6cf86">guards?</text>
+<rect x="440" y="846" width="220" height="48" rx="9" fill="#121a30" stroke="#33405e"/>
+<text x="550" y="864" text-anchor="middle" font-size="10.5" fill="#dbe4f0">Risk policy</text>
+<text x="550" y="879" text-anchor="middle" font-size="8.8" fill="#8c99b0">stop-loss · trailing · take-profit · max-drawdown</text>
+<rect x="700" y="846" width="175" height="48" rx="9" fill="#1b1733" stroke="#8b7dff" stroke-width="1.2"/>
+<text x="787" y="865" text-anchor="middle" font-size="10.5" fill="#cfc8ff" font-weight="700" font-family="Consolas, monospace">EVALUATE</text>
+<text x="787" y="879" text-anchor="middle" font-size="8.8" fill="#a99cff" font-family="Consolas, monospace">vs live price</text>
+<polygon points="960,836 1016,870 960,904 904,870" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="960" y="873" text-anchor="middle" font-size="9.2" fill="#f6cf86">Breached?</text>
+<!-- outcomes -->
+<rect x="1070" y="800" width="200" height="36" rx="7" fill="#2a1012" stroke="#ff5d62"/>
+<text x="1170" y="822" text-anchor="middle" font-size="10" fill="#ffc3c5">Protective SELL · cash returned</text>
+<rect x="1070" y="852" width="200" height="36" rx="7" fill="#2a1012" stroke="#ff5d62"/>
+<text x="1170" y="874" text-anchor="middle" font-size="10" fill="#ffc3c5">Drawdown → cut to cash floor</text>
+<rect x="1070" y="904" width="200" height="34" rx="7" fill="#121a30" stroke="#33405e"/>
+<text x="1170" y="925" text-anchor="middle" font-size="10" fill="#dbe4f0">Hold</text>
+<!-- exit -->
+<polygon points="1400,836 1460,870 1400,904 1340,870" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="1400" y="867" text-anchor="middle" font-size="9" fill="#f6cf86">Sell /</text>
+<text x="1400" y="879" text-anchor="middle" font-size="9" fill="#f6cf86">withdraw?</text>
+<rect x="1340" y="950" width="120" height="34" rx="7" fill="#0f2a22" stroke="#2bd49b"/>
+<text x="1400" y="971" text-anchor="middle" font-size="10" fill="#bff3e0">Sell / withdraw</text>
+<g fill="none">
+  <path d="M260 870H285" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M405 870H440" stroke="#3bbf8e" stroke-width="1.5" marker-end="url(#aE)"/>
+  <path d="M345 904 V930 H190 V892" stroke="#5a6a8a" stroke-width="1.2" marker-end="url(#aS)" opacity="0.7"/>
+  <path d="M660 870H700" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M875 870H904" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M1016 866 H1045 V818 H1070" stroke="#ff5d62" stroke-width="1.3" marker-end="url(#aR)"/>
+  <path d="M1016 870H1070" stroke="#ff5d62" stroke-width="1.3" marker-end="url(#aR)"/>
+  <path d="M1016 874 H1045 V921 H1070" stroke="#5a6a8a" stroke-width="1.3" marker-end="url(#aS)"/>
+  <path d="M1270 818 H1305 V760 H190 V848" stroke="#ff5d62" stroke-width="1.1" marker-end="url(#aR)" opacity="0.6"/>
+  <path d="M1270 921 H1320 V870 H1340" stroke="#5a6a8a" stroke-width="1.4" marker-end="url(#aS)"/>
+  <path d="M1400 904V950" stroke="#3bbf8e" stroke-width="1.4" marker-end="url(#aE)"/>
+</g>
+<text x="412" y="862" font-size="9" font-family="Consolas, monospace" fill="#3bbf8e">yes</text>
+<text x="1022" y="846" font-size="8.5" font-family="Consolas, monospace" fill="#ff5d62">stop/trail/take</text>
+<text x="1022" y="938" font-size="8.5" font-family="Consolas, monospace" fill="#8c99b0">no</text>
+
+<!-- ====================== TRACK D : AUTOMATE (bot loop) ====================== -->
+<!-- y=1180 -->
+<rect x="120" y="1158" width="130" height="44" rx="9" fill="#121a30" stroke="#33405e"/>
+<text x="185" y="1176" text-anchor="middle" font-size="11" fill="#dbe4f0">Auto-Trader</text>
+<text x="185" y="1191" text-anchor="middle" font-size="9" fill="#8c99b0">pick a mode (5)</text>
+<!-- loop chain (engine) -->
+<g font-family="Consolas, monospace">
+  <rect x="290" y="1158" width="150" height="44" rx="8" fill="#1b1733" stroke="#8b7dff"/><text x="365" y="1176" text-anchor="middle" font-size="9.4" fill="#cfc8ff">Rebalance</text><text x="365" y="1190" text-anchor="middle" font-size="8.4" fill="#a99cff">~monthly</text>
+  <rect x="470" y="1158" width="160" height="44" rx="8" fill="#1b1733" stroke="#8b7dff"/><text x="550" y="1176" text-anchor="middle" font-size="9.4" fill="#cfc8ff">Market analysis</text><text x="550" y="1190" text-anchor="middle" font-size="8.4" fill="#a99cff">regime + composite</text>
+  <rect x="660" y="1158" width="180" height="44" rx="8" fill="#1b1733" stroke="#8b7dff" stroke-width="1.4"/><text x="750" y="1176" text-anchor="middle" font-size="9.4" fill="#cfc8ff">Pick names</text><text x="750" y="1190" text-anchor="middle" font-size="8.4" fill="#9ee6c6">POINT-IN-TIME · no look-ahead</text>
+  <rect x="870" y="1158" width="150" height="44" rx="8" fill="#1b1733" stroke="#8b7dff"/><text x="945" y="1176" text-anchor="middle" font-size="9.4" fill="#cfc8ff">Optimize weights</text><text x="945" y="1190" text-anchor="middle" font-size="8.4" fill="#a99cff">+ per-name cap</text>
+  <rect x="1050" y="1158" width="170" height="44" rx="8" fill="#1b1733" stroke="#8b7dff"/><text x="1135" y="1176" text-anchor="middle" font-size="9.4" fill="#cfc8ff">Rotate winners↑ losers↓</text><text x="1135" y="1190" text-anchor="middle" font-size="8.4" fill="#9ee6c6">NOT martingale</text>
+  <rect x="1250" y="1158" width="160" height="44" rx="8" fill="#1b1733" stroke="#8b7dff"/><text x="1330" y="1176" text-anchor="middle" font-size="9.4" fill="#cfc8ff">Stop-loss + breaker</text><text x="1330" y="1190" text-anchor="middle" font-size="8.4" fill="#a99cff">mark-to-market</text>
+</g>
+<polygon points="1495,1146 1545,1180 1495,1214 1445,1180" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="1495" y="1177" text-anchor="middle" font-size="8.6" fill="#f6cf86">More</text>
+<text x="1495" y="1189" text-anchor="middle" font-size="8.6" fill="#f6cf86">bars?</text>
+<rect x="1360" y="1258" width="190" height="40" rx="8" fill="#121a30" stroke="#33405e"/>
+<text x="1455" y="1276" text-anchor="middle" font-size="10" fill="#dbe4f0">Result vs buy &amp; hold</text>
+<text x="1455" y="1290" text-anchor="middle" font-size="8.8" fill="#8c99b0">+ best / WORST strategy</text>
+<g fill="none">
+  <path d="M250 1180H290" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M440 1180H470" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M630 1180H660" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M840 1180H870" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M1020 1180H1050" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M1220 1180H1250" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M1410 1180H1445" stroke="#8b7dff" stroke-width="1.5" marker-end="url(#aI)"/>
+  <path d="M1495 1146 V1110 H365 V1158" stroke="#f3a712" stroke-width="1.3" marker-end="url(#aS)" opacity="0.85"/>
+  <path d="M1495 1214 V1278 H1360" stroke="#3bbf8e" stroke-width="1.4" marker-end="url(#aE)"/>
+</g>
+<text x="700" y="1102" font-size="9" font-family="Consolas, monospace" fill="#f3a712">loop · more bars → rebalance</text>
+<text x="1500" y="1250" font-size="9" font-family="Consolas, monospace" fill="#3bbf8e">done</text>
+
+<!-- ====================== TRACK E : GO LIVE + SAFETY ====================== -->
+<polygon points="190,1456 250,1490 190,1524 130,1490" fill="#231a08" stroke="#f3a712" stroke-width="1.3"/>
+<text x="190" y="1487" text-anchor="middle" font-size="9" fill="#f6cf86">Want REAL</text>
+<text x="190" y="1499" text-anchor="middle" font-size="9" fill="#f6cf86">money?</text>
+<rect x="130" y="1556" width="150" height="36" rx="18" fill="#0f2a22" stroke="#2bd49b"/>
+<text x="205" y="1578" text-anchor="middle" font-size="10.5" fill="#bff3e0">Stay sandbox · paper</text>
+<!-- numbered steps (a real sequence) -->
+<g>
+  <rect x="320" y="1468" width="150" height="44" rx="9" fill="#121a30" stroke="#33405e"/><text x="335" y="1485" font-size="13" font-weight="800" fill="#2bd49b" font-family="Consolas, monospace">1</text><text x="402" y="1487" text-anchor="middle" font-size="10" fill="#dbe4f0">Live data keys</text><text x="402" y="1500" text-anchor="middle" font-size="8.6" fill="#8c99b0">Finnhub · CoinGecko</text>
+  <rect x="510" y="1468" width="155" height="44" rx="9" fill="#121a30" stroke="#33405e"/><text x="525" y="1485" font-size="13" font-weight="800" fill="#2bd49b" font-family="Consolas, monospace">2</text><text x="595" y="1487" text-anchor="middle" font-size="10" fill="#dbe4f0">Broker = Alpaca</text><text x="595" y="1500" text-anchor="middle" font-size="8.6" fill="#9ee6c6">PAPER</text>
+  <rect x="705" y="1468" width="165" height="44" rx="9" fill="#121a30" stroke="#33405e"/><text x="720" y="1485" font-size="13" font-weight="800" fill="#2bd49b" font-family="Consolas, monospace">3</text><text x="795" y="1487" text-anchor="middle" font-size="10" fill="#dbe4f0">Validate weeks</text><text x="795" y="1500" text-anchor="middle" font-size="8.6" fill="#8c99b0">live-paper first</text>
+</g>
+<rect x="915" y="1462" width="220" height="56" rx="9" fill="#1a0d11" stroke="#ff5d62" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="1025" y="1482" text-anchor="middle" font-size="11" fill="#ff8d90" font-weight="700" font-family="Consolas, monospace">⛔ LIVE GATE</text>
+<text x="1025" y="1497" text-anchor="middle" font-size="8.6" fill="#f3a712" font-family="Consolas, monospace">ALPACA_LIVE=1 + exact ack +</text>
+<text x="1025" y="1509" text-anchor="middle" font-size="8.6" fill="#f3a712" font-family="Consolas, monospace">funded account · YOUR risk</text>
+<rect x="1180" y="1468" width="150" height="44" rx="22" fill="#0f2a22" stroke="#2bd49b" stroke-width="1.3"/>
+<text x="1255" y="1487" text-anchor="middle" font-size="11" fill="#bff3e0" font-weight="600">Live trading</text>
+<text x="1255" y="1501" text-anchor="middle" font-size="8.8" fill="#79c9aa">ships OFF</text>
+<g fill="none">
+  <path d="M190 1524V1556" stroke="#3bbf8e" stroke-width="1.4" marker-end="url(#aE)"/>
+  <path d="M250 1490H320" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M470 1490H510" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M665 1490H705" stroke="#5a6a8a" stroke-width="1.5" marker-end="url(#aS)"/>
+  <path d="M870 1490H915" stroke="#ff5d62" stroke-width="1.5" marker-end="url(#aR)"/>
+  <path d="M1135 1490H1180" stroke="#3bbf8e" stroke-width="1.5" marker-end="url(#aE)"/>
+</g>
+<text x="258" y="1483" font-size="9" font-family="Consolas, monospace" fill="#3bbf8e">yes</text>
+<text x="196" y="1548" font-size="9" font-family="Consolas, monospace" fill="#8c99b0">no</text>
+
+<!-- ===== SAFETY RAIL (always-on) ===== -->
+<line x1="40" y1="1610" x2="1660" y2="1610" stroke="#3a1418" stroke-width="1"/>
+<text x="42" y="1644" font-size="12" font-weight="700" font-family="Consolas, monospace" fill="#c2484d" letter-spacing="2">⛔ SAFETY GATES — ALWAYS ON</text>
+<g font-family="Consolas, monospace">
+  <rect x="300" y="1622" width="280" height="40" rx="8" fill="#1a0d11" stroke="#ff5d62" stroke-dasharray="5 4"/><text x="440" y="1640" text-anchor="middle" font-size="10" fill="#ff9a9d">Paper-only default</text><text x="440" y="1653" text-anchor="middle" font-size="8.6" fill="#caa86a">no real money moves</text>
+  <rect x="600" y="1622" width="300" height="40" rx="8" fill="#1a0d11" stroke="#ff5d62" stroke-dasharray="5 4"/><text x="750" y="1640" text-anchor="middle" font-size="10" fill="#ff9a9d">Impossible-target guard</text><text x="750" y="1653" text-anchor="middle" font-size="8.6" fill="#caa86a">$20→$2k/2mo flagged infeasible</text>
+  <rect x="920" y="1622" width="230" height="40" rx="8" fill="#1a0d11" stroke="#ff5d62" stroke-dasharray="5 4"/><text x="1035" y="1640" text-anchor="middle" font-size="10" fill="#ff9a9d">No look-ahead</text><text x="1035" y="1653" text-anchor="middle" font-size="8.6" fill="#caa86a">point-in-time scoring</text>
+  <rect x="1170" y="1622" width="250" height="40" rx="8" fill="#1a0d11" stroke="#ff5d62" stroke-dasharray="5 4"/><text x="1295" y="1640" text-anchor="middle" font-size="10" fill="#ff9a9d">Synthetic data</text><text x="1295" y="1653" text-anchor="middle" font-size="8.6" fill="#caa86a">not a deployable edge</text>
+</g>
+
+<!-- ===== TITLE BLOCK (drafting style) ===== -->
+<g font-family="Consolas, monospace">
+  <rect x="1300" y="1690" width="360" height="66" rx="6" fill="#0c1428" stroke="#26344e"/>
+  <line x1="1300" y1="1712" x2="1660" y2="1712" stroke="#26344e"/>
+  <line x1="1470" y1="1712" x2="1470" y2="1756" stroke="#26344e"/>
+  <text x="1312" y="1706" font-size="10" fill="#9fb0c7" font-weight="700">GIFFMEMONEY · SYSTEM FLOW</text>
+  <text x="1312" y="1730" font-size="8.5" fill="#6f7e98">SHEET</text><text x="1312" y="1745" font-size="11" fill="#dbe4f0">1 / 1</text>
+  <text x="1482" y="1730" font-size="8.5" fill="#6f7e98">SCALE</text><text x="1482" y="1745" font-size="11" fill="#dbe4f0">full system</text>
+  <text x="1572" y="1730" font-size="8.5" fill="#6f7e98">REV</text><text x="1572" y="1745" font-size="11" fill="#2bd49b">A</text>
+</g>
+<text x="40" y="1745" font-size="9.5" font-family="Consolas, monospace" fill="#52617e">Educational simulation · not financial advice · capital is at risk · live trading ships OFF</text>
+</svg></body></html>
