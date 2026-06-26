@@ -11,6 +11,7 @@ export * from './usePortfolioOpt';
 export * from './useWallet';
 export * from './usePortfolioState';
 export * from './usePortfolioHistory';
+export * from './useRiskPolicy';
 export * from './useAdvisor';
 export * from './useBot';
 export * from './useBroker';

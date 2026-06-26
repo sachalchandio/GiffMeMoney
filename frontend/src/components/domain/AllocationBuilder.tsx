@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Tabs, type TabItem } from '@/components/ui/Tabs';
 import { Select, type SelectOption } from '@/components/ui/Select';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { SyntheticDataBanner } from '@/components/domain/SyntheticDataBanner';
 import { useAssets } from '@/hooks/useAssets';
 import { useInvest } from '@/hooks/usePortfolioState';
 import { useAdvisor } from '@/hooks/useAdvisor';
@@ -108,6 +109,8 @@ export function AllocationBuilder({
   const [rows, setRows] = useState<AllocationRow[]>([]);
   const [pickSymbol, setPickSymbol] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
+  // Last advisor result, kept so we can surface its honesty banner + cash sleeve.
+  const [lastAdvice, setLastAdvice] = useState<AllocationAdvice | null>(null);
 
   // Replace rows when the page applies an external basket (token bumps each apply).
   const appliedToken = appliedRows?.token ?? null;
@@ -156,6 +159,7 @@ export function AllocationBuilder({
       {
         onSuccess: (advice) => {
           setRows(advice.items.map((it) => ({ symbol: it.asset.symbol, amount: round(it.amount, 2) })));
+          setLastAdvice(advice);
           onAdvice?.(advice);
         },
         onError: (err) => setError(err instanceof Error ? err.message : 'Could not fetch a suggestion.'),
@@ -219,6 +223,21 @@ export function AllocationBuilder({
           </Button>
         </div>
       </div>
+
+      {/* Advisor honesty banner + cash-sleeve note (only after a suggestion) */}
+      {lastAdvice && (
+        <>
+          <SyntheticDataBanner synthetic={lastAdvice.syntheticData} targetWarning={lastAdvice.targetWarning} />
+          {(lastAdvice.cashWeight ?? 0) > 0.0005 && (
+            <p className="text-[11px] text-muted">
+              Advisor parked{' '}
+              <span className="font-medium text-text">{formatPct((lastAdvice.cashWeight ?? 0) * 100, { digits: 0 })}</span>{' '}
+              ({formatCurrency(lastAdvice.cashAmount ?? 0)}) as uninvested cash — the suggested rows below total the risky
+              sleeve, not all of your cash.
+            </p>
+          )}
+        </>
+      )}
 
       {/* Class tabs + add row */}
       <div className="flex flex-col gap-2">

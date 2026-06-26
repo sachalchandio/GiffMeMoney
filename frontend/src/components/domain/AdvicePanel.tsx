@@ -8,17 +8,33 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Compass, Sparkles, TrendingUp } from 'lucide-react';
+import { Compass, PiggyBank, ShieldAlert, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Tabs, type TabItem } from '@/components/ui/Tabs';
 import { ScenarioFanChart } from '@/components/charts/ScenarioFanChart';
+import { SyntheticDataBanner } from '@/components/domain/SyntheticDataBanner';
 import { useAdvisor } from '@/hooks/useAdvisor';
-import type { AllocationAdvice, RiskTolerance } from '@/lib/types';
+import type { AllocationAdvice, ExpectedReturn, RiskTolerance } from '@/lib/types';
 import { formatCurrency, formatFractionPct, formatPct, formatRatio } from '@/lib/format';
 import { changeTextColor, cn, round } from '@/lib/utils';
+
+/**
+ * Pick the horizon used for the headline downside read-out. Prefers the 1Y
+ * horizon (the advisor's sizing horizon); falls back to the last horizon that
+ * carries either a CVaR or a bear-case figure, else the last horizon.
+ */
+function downsideHorizon(horizons: ExpectedReturn[]): ExpectedReturn | null {
+  if (horizons.length === 0) return null;
+  const oneYear = horizons.find((h) => h.horizon === '1Y');
+  if (oneYear) return oneYear;
+  const withDownside = [...horizons]
+    .reverse()
+    .find((h) => h.cvarPct != null || h.bearPct != null);
+  return withDownside ?? horizons[horizons.length - 1] ?? null;
+}
 
 export interface AdvicePanelProps {
   /** Amount to size the basket for (e.g. the wallet cash). */
@@ -94,12 +110,65 @@ export function AdvicePanel({ amount, advice: external, onApply, className }: Ad
         </div>
       ) : (
         <>
-          {/* Blended headline metrics */}
+          {/* Honesty: infeasible-target warning + synthetic-data note */}
+          <SyntheticDataBanner synthetic={advice.syntheticData} targetWarning={advice.targetWarning} />
+
+          {/* Blended headline metrics (of the risky sleeve) */}
           <div className="grid grid-cols-3 gap-2">
             <Headline label="Exp. return" value={formatFractionPct(advice.expectedReturn, { digits: 1, sign: true })} tone={changeTextColor(advice.expectedReturn)} />
             <Headline label="Volatility" value={formatFractionPct(advice.expectedVol, { digits: 1 })} />
             <Headline label="Sharpe" value={formatRatio(advice.sharpe)} />
           </div>
+
+          {/* Cash sleeve + basket downside (bear case / CVaR) */}
+          {(() => {
+            const cashWeight = advice.cashWeight ?? 0;
+            const cashAmount = advice.cashAmount ?? 0;
+            const down = downsideHorizon(advice.horizons);
+            const showCash = cashWeight > 0.0005 || cashAmount > 0.005;
+            const bear = down?.bearPct ?? null;
+            const cvar = down?.cvarPct ?? null;
+            if (!showCash && bear == null && cvar == null) return null;
+            return (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {showCash && (
+                  <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-2/40 px-3 py-2">
+                    <PiggyBank className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Cash sleeve</p>
+                      <p className="text-sm font-semibold tnum text-text">
+                        {formatFractionPct(cashWeight, { digits: 0 })}
+                        <span className="ml-1 text-[11px] font-normal text-muted">· {formatCurrency(cashAmount)} held</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {(bear != null || cvar != null) && (
+                  <div className="flex items-center gap-2.5 rounded-xl border border-danger/25 bg-danger/5 px-3 py-2">
+                    <ShieldAlert className="h-4 w-4 shrink-0 text-danger" aria-hidden />
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+                        Downside{down ? ` · ${down.horizon}` : ''}
+                      </p>
+                      <p className="flex flex-wrap items-baseline gap-x-2 text-sm font-semibold tnum text-text">
+                        {bear != null && (
+                          <span className="inline-flex items-center gap-0.5 text-danger">
+                            <TrendingDown className="h-3 w-3" aria-hidden />
+                            {formatPct(bear, { sign: true, digits: 1 })} bear
+                          </span>
+                        )}
+                        {cvar != null && (
+                          <span className="text-[11px] font-normal text-muted">
+                            CVaR −{formatPct(Math.abs(cvar), { digits: 1 })}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Picks */}
           <ul className="flex flex-col gap-2">

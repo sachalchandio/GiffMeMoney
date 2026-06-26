@@ -315,14 +315,18 @@ def adx(
     minus_dm_s = _wilder_rma(minus_dm, period)
 
     # Avoid divide-by-zero: where ATR is ~0 the bar is flat -> no direction.
+    # The np.nan denominator + ``di_sum`` guard already collapse degenerate
+    # bars to 0; wrap the divides in errstate (like the sibling sites) so a flat
+    # series emits no RuntimeWarning while the output is unchanged.
     safe_atr = np.where(atr_s > _EPS, atr_s, np.nan)
-    plus_di = 100.0 * plus_dm_s / safe_atr
-    minus_di = 100.0 * minus_dm_s / safe_atr
-    plus_di = np.nan_to_num(plus_di, nan=0.0, posinf=0.0, neginf=0.0)
-    minus_di = np.nan_to_num(minus_di, nan=0.0, posinf=0.0, neginf=0.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        plus_di = 100.0 * plus_dm_s / safe_atr
+        minus_di = 100.0 * minus_dm_s / safe_atr
+        plus_di = np.nan_to_num(plus_di, nan=0.0, posinf=0.0, neginf=0.0)
+        minus_di = np.nan_to_num(minus_di, nan=0.0, posinf=0.0, neginf=0.0)
 
-    di_sum = plus_di + minus_di
-    dx = np.where(di_sum > _EPS, 100.0 * np.abs(plus_di - minus_di) / di_sum, 0.0)
+        di_sum = plus_di + minus_di
+        dx = np.where(di_sum > _EPS, 100.0 * np.abs(plus_di - minus_di) / di_sum, 0.0)
     dx = np.nan_to_num(dx, nan=0.0, posinf=0.0, neginf=0.0)
 
     adx_series = _wilder_rma(dx, period)
@@ -371,12 +375,16 @@ def adx_components(
     plus_dm_s = _wilder_rma(plus_dm, period)
     minus_dm_s = _wilder_rma(minus_dm, period)
 
+    # Wrap the divides in errstate (like the sibling sites) so a flat series
+    # emits no RuntimeWarning; the nan denominator + ``di_sum`` guard keep the
+    # output unchanged.
     safe_atr = np.where(atr_s > _EPS, atr_s, np.nan)
-    plus_di = np.nan_to_num(100.0 * plus_dm_s / safe_atr, nan=0.0, posinf=0.0, neginf=0.0)
-    minus_di = np.nan_to_num(100.0 * minus_dm_s / safe_atr, nan=0.0, posinf=0.0, neginf=0.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        plus_di = np.nan_to_num(100.0 * plus_dm_s / safe_atr, nan=0.0, posinf=0.0, neginf=0.0)
+        minus_di = np.nan_to_num(100.0 * minus_dm_s / safe_atr, nan=0.0, posinf=0.0, neginf=0.0)
 
-    di_sum = plus_di + minus_di
-    dx = np.where(di_sum > _EPS, 100.0 * np.abs(plus_di - minus_di) / di_sum, 0.0)
+        di_sum = plus_di + minus_di
+        dx = np.where(di_sum > _EPS, 100.0 * np.abs(plus_di - minus_di) / di_sum, 0.0)
     dx = np.nan_to_num(dx, nan=0.0, posinf=0.0, neginf=0.0)
     adx_series = _wilder_rma(dx, period)
 

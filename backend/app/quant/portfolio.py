@@ -5,12 +5,25 @@ set of assets whose expected returns and covariance are supplied **already
 annualized**. It provides:
 
     * ``portfolio_stats`` — annual return, volatility and Sharpe of a weight vector.
-    * ``optimize``        — long-only constrained optimization for three objectives
-                            (``max_sharpe``, ``min_volatility``, ``target_return``)
-                            via :func:`scipy.optimize.minimize` (SLSQP).
+    * ``optimize``        — long-only constrained optimization for four objectives
+                            (``max_sharpe``, ``min_volatility``, ``target_return``,
+                            ``min_cvar``) via :func:`scipy.optimize.minimize`
+                            (SLSQP), with an optional per-name weight **cap**.
     * ``efficient_frontier`` — the minimum-variance frontier sampled at ``n`` points.
     * ``tangency_portfolio``  — the maximum-Sharpe (tangency) portfolio.
     * ``capital_market_line`` — the CML from the risk-free rate through the tangency.
+
+Downside-aware objective (``min_cvar``): given a historical matrix of periodic
+asset returns ``R`` (rows = periods, cols = assets), the weighted portfolio
+return series is ``p = R . w``; its CVaR (expected shortfall) at confidence
+``beta`` is the mean of the worst ``(1 - beta)`` tail of ``-p`` (a positive loss
+figure). Minimizing it concentrates the portfolio away from names that drive the
+deep-loss tail, which mean-variance alone (a symmetric variance penalty) ignores.
+
+Per-name weight cap: passing ``max_weight`` tightens the per-asset upper bound
+from ``1`` to ``max_weight`` so no single name dominates the basket. The cap is
+defensively floored to ``1 / n`` so the long-only / sum-to-1 problem always stays
+feasible (``n`` names each capped below ``1 / n`` could never sum to 1).
 
 Core formulas (``w`` = weight vector, ``mu`` = expected returns, ``S`` =
 covariance matrix, ``rf`` = annual risk-free rate):
@@ -44,6 +57,7 @@ from scipy.optimize import minimize
 __all__ = [
     "portfolio_stats",
     "optimize",
+    "portfolio_cvar",
     "efficient_frontier",
     "tangency_portfolio",
     "capital_market_line",
@@ -191,10 +205,40 @@ def portfolio_stats(
     return ret, vol, sharpe
 
 
+def _resolve_cap(max_weight: float | None, n: int) -> float:
+    """Resolve a feasible per-name upper bound from ``max_weight`` and ``n``.
+
+    A long-only, fully-invested basket of ``n`` names can only sum to 1 if the
+    per-name cap is at least ``1 / n`` (otherwise no feasible point exists). The
+    requested cap is therefore floored to ``1 / n`` and ceilinged at ``1.0``;
+    ``None`` / non-finite / non-positive requests disable the cap (i.e. ``1.0``).
+
+    Args:
+        max_weight: Requested per-name upper bound (decimal fraction), or ``None``.
+        n: Number of assets.
+
+    Returns:
+        A finite cap in ``[1 / n, 1.0]``.
+    """
+    if n <= 0:
+        return 1.0
+    floor = 1.0 / float(n)
+    if max_weight is None:
+        return 1.0
+    try:
+        cap = float(max_weight)
+    except (TypeError, ValueError):
+        return 1.0
+    if not math.isfinite(cap) or cap <= 0.0:
+        return 1.0
+    return min(1.0, max(floor, cap))
+
+
 def _solve_slsqp(
     objective,
     n: int,
     extra_constraints: list[dict] | None = None,
+    cap: float = 1.0,
 ) -> np.ndarray | None:
     """Run SLSQP from the equal-weight start with long-only, sum-to-1 constraints.
 
@@ -203,6 +247,9 @@ def _solve_slsqp(
         n: Number of assets.
         extra_constraints: Optional list of additional SLSQP constraint dicts
             (e.g. a target-return equality) appended to the budget constraint.
+        cap: Per-name upper bound for the box constraints (defaults to ``1.0`` =
+            no cap). Assumed already resolved to a feasible ``[1 / n, 1.0]`` value
+            by :func:`_resolve_cap`.
 
     Returns:
         The optimized weight vector (clipped/renormalized) if the solver reports
@@ -212,7 +259,9 @@ def _solve_slsqp(
     if n <= 0:
         return None
     x0 = np.full(n, 1.0 / n, dtype=np.float64)
-    bounds = [(0.0, 1.0)] * n
+    ub = float(cap) if (math.isfinite(cap) and cap > 0.0) else 1.0
+    ub = min(1.0, max(1.0 / float(n), ub))
+    bounds = [(0.0, ub)] * n
     constraints: list[dict] = [{"type": "eq", "fun": lambda w: float(np.sum(w) - 1.0)}]
     if extra_constraints:
         constraints.extend(extra_constraints)
@@ -235,16 +284,65 @@ def _solve_slsqp(
     return _normalize_weights(w, n)
 
 
+def portfolio_cvar(
+    weights: np.ndarray | list[float],
+    returns_matrix: np.ndarray | list[list[float]],
+    beta: float = 0.95,
+) -> float:
+    """Historical CVaR (expected shortfall) of a weighted portfolio return series.
+
+    Given a ``(T, n)`` matrix ``R`` of periodic asset returns and weights ``w``,
+    the portfolio return series is ``p = R . w``. The CVaR at confidence ``beta``
+    is the mean of the worst ``(1 - beta)`` fraction of *losses* (``-p``):
+
+        losses     = -(R . w)               # positive = a loss
+        VaR_beta   = quantile(losses, beta)
+        CVaR_beta  = mean(losses[losses >= VaR_beta])
+
+    Returned as a **positive loss figure** (larger = worse downside). At least one
+    tail observation is always included so the figure is well defined.
+
+    Args:
+        weights: Portfolio weight vector (length ``n``).
+        returns_matrix: ``(T, n)`` periodic asset-return matrix.
+        beta: Tail confidence in ``(0, 1)`` (e.g. ``0.95``).
+
+    Returns:
+        The historical CVaR as a finite, non-negative float (``0.0`` when no
+        usable return history is supplied).
+    """
+    R = np.asarray(returns_matrix, dtype=np.float64)
+    if R.ndim != 2 or R.shape[0] < 1 or R.shape[1] != np.asarray(weights).size:
+        return 0.0
+    w = np.asarray(weights, dtype=np.float64).ravel()
+    port = R @ w
+    port = port[np.isfinite(port)]
+    if port.size == 0:
+        return 0.0
+    losses = -port
+    b = float(beta) if math.isfinite(beta) else 0.95
+    b = min(0.999, max(0.0, b))
+    var = float(np.quantile(losses, b))
+    tail = losses[losses >= var]
+    if tail.size == 0:
+        tail = losses[-1:]
+    cvar = float(np.mean(tail))
+    return cvar if math.isfinite(cvar) else 0.0
+
+
 def optimize(
     mu_annual: np.ndarray | list[float],
     cov_annual: np.ndarray | list[list[float]],
     rf: float,
     objective: str,
     target: float | None = None,
+    max_weight: float | None = None,
+    returns_matrix: np.ndarray | list[list[float]] | None = None,
+    cvar_beta: float = 0.95,
 ) -> np.ndarray:
     """Solve a long-only mean-variance optimization for the chosen objective.
 
-    All problems are solved with SLSQP under long-only (``0 <= w_i <= 1``) and
+    All problems are solved with SLSQP under long-only (``0 <= w_i <= cap``) and
     fully-invested (``sum(w) = 1``) constraints. Supported objectives:
 
         * ``"max_sharpe"``     — maximize ``(w.mu - rf) / sqrt(w.S.w)``
@@ -253,16 +351,30 @@ def optimize(
         * ``"target_return"``  — minimize variance subject to ``w.mu = target``
           (the target is clamped to the achievable ``[min(mu), max(mu)]`` range so
           the equality constraint is always feasible).
+        * ``"min_cvar"``       — minimize the historical CVaR (expected shortfall)
+          of the weighted portfolio return series built from ``returns_matrix``.
+          Falls back to ``"min_volatility"`` when no usable return history is
+          supplied (so the call never raises).
+
+    A per-name **cap** (``max_weight``) tightens every box constraint's upper
+    bound from ``1`` to ``max_weight`` so no single name dominates; it is floored
+    to ``1 / n`` so the sum-to-1 problem stays feasible.
 
     Args:
         mu_annual: Annual expected returns per asset.
         cov_annual: Annual covariance matrix (``n x n``).
         rf: Annual risk-free rate (decimal).
         objective: One of ``"max_sharpe"``, ``"min_volatility"``,
-            ``"target_return"``. Unknown values default to ``"max_sharpe"``.
+            ``"target_return"``, ``"min_cvar"``. Unknown values default to
+            ``"max_sharpe"``.
         target: Required annual target return for ``"target_return"``; ignored
             otherwise. ``None`` with ``"target_return"`` falls back to the
             mean of ``mu``.
+        max_weight: Optional per-name upper bound (decimal fraction in ``(0, 1]``);
+            ``None`` disables the cap. Floored to ``1 / n`` for feasibility.
+        returns_matrix: Optional ``(T, n)`` periodic asset-return matrix used by
+            the ``"min_cvar"`` objective; ignored by the others.
+        cvar_beta: Tail confidence for ``"min_cvar"`` (e.g. ``0.95``).
 
     Returns:
         A long-only ``float64`` weight vector of length ``n`` summing to 1. For an
@@ -278,15 +390,45 @@ def optimize(
 
     cov = _clean_cov(cov_annual, n)
     rf_v = float(rf) if math.isfinite(rf) else 0.0
+    cap = _resolve_cap(max_weight, n)
+    # With a per-name cap the equal-weight portfolio (each = 1/n <= cap) is always
+    # feasible, so it remains a safe fallback.
     equal = np.full(n, 1.0 / n, dtype=np.float64)
 
     def _variance(w: np.ndarray) -> float:
         return float(w @ cov @ w)
 
-    obj = objective if objective in {"max_sharpe", "min_volatility", "target_return"} else "max_sharpe"
+    obj = (
+        objective
+        if objective in {"max_sharpe", "min_volatility", "target_return", "min_cvar"}
+        else "max_sharpe"
+    )
+
+    if obj == "min_cvar":
+        R = None
+        if returns_matrix is not None:
+            cand = np.asarray(returns_matrix, dtype=np.float64)
+            cand = np.nan_to_num(cand, nan=0.0, posinf=0.0, neginf=0.0)
+            if cand.ndim == 2 and cand.shape[0] >= 2 and cand.shape[1] == n:
+                R = cand
+        if R is None:
+            # No usable history → fall back to the (still downside-aware enough)
+            # minimum-variance solution rather than failing.
+            result = _solve_slsqp(_variance, n, cap=cap)
+            return result if result is not None else equal
+
+        def _cvar(w: np.ndarray, _R=R, _b=cvar_beta) -> float:
+            return portfolio_cvar(w, _R, _b)
+
+        result = _solve_slsqp(_cvar, n, cap=cap)
+        if result is not None:
+            return result
+        # Defensive fallback chain: min-variance, then equal weight.
+        result = _solve_slsqp(_variance, n, cap=cap)
+        return result if result is not None else equal
 
     if obj == "min_volatility":
-        result = _solve_slsqp(_variance, n)
+        result = _solve_slsqp(_variance, n, cap=cap)
         return result if result is not None else equal
 
     if obj == "target_return":
@@ -299,7 +441,7 @@ def optimize(
         # Clamp the target into the achievable range so the equality is feasible.
         tgt = min(hi, max(lo, tgt))
         ret_constraint = {"type": "eq", "fun": lambda w, t=tgt: float(w @ mu - t)}
-        result = _solve_slsqp(_variance, n, [ret_constraint])
+        result = _solve_slsqp(_variance, n, [ret_constraint], cap=cap)
         return result if result is not None else equal
 
     # Default: max_sharpe — minimize negative Sharpe ratio.
@@ -312,7 +454,7 @@ def optimize(
         sr = (ret - rf_v) / vol
         return -sr if math.isfinite(sr) else 0.0
 
-    result = _solve_slsqp(_neg_sharpe, n)
+    result = _solve_slsqp(_neg_sharpe, n, cap=cap)
     if result is None:
         return equal
     # Guard against a degenerate corner solution: if max_sharpe collapsed to all

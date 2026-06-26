@@ -29,13 +29,16 @@ import math
 import time
 import uuid
 
-from app.invest.store import AccountStore, PositionState
+from app.invest.store import AccountStore, PositionState, RiskPolicyState
 from app.market.provider import MarketDataProvider
 from app.schemas import (
     AllocationItem,
     Asset,
     PortfolioState,
     Position,
+    RiskAction,
+    RiskApplyResult,
+    RiskPolicy,
     Transaction,
     Wallet,
 )
@@ -44,6 +47,12 @@ __all__ = ["PortfolioService"]
 
 # Units below this magnitude are treated as a fully closed position.
 _UNITS_EPS: float = 1e-9
+
+# Defensive cash floor the drawdown circuit-breaker reduces *to*: once total
+# portfolio value breaches ``maxDrawdownPct`` from its peak, exposure is cut so
+# at least this fraction of total value is held in cash (mirrors the auto-trader
+# bot's ``_DRAWDOWN_CASH_FLOOR`` so both layers de-risk consistently).
+_DRAWDOWN_CASH_FLOOR: float = 0.5
 
 
 def _now_ms() -> int:
@@ -184,6 +193,13 @@ class PortfolioService:
                 market_value = float(state.units) * price
                 if not math.isfinite(market_value):
                     market_value = 0.0
+                # Ratchet the trailing-stop high-water mark up to the latest mark
+                # (never down). Reading the portfolio keeps the peak current so a
+                # later evaluate_risk() trailing stop is measured from the true peak.
+                if price > 0.0 and math.isfinite(price):
+                    state.high_water_price = max(
+                        float(state.high_water_price), price
+                    )
                 total_market += market_value
                 priced.append((state, asset, price, market_value))
 
@@ -226,6 +242,13 @@ class PortfolioService:
             total_pnl_pct = (
                 total_pnl / total_cost * 100.0 if total_cost > 0.0 else 0.0
             )
+
+            # Ratchet the account-level peak (cash + invested) so the drawdown
+            # circuit-breaker is measured from the true high-water value.
+            account_value = float(wallet.cash_balance) + total_market
+            if math.isfinite(account_value):
+                account.peak_value = max(float(account.peak_value), account_value)
+
             return PortfolioState(
                 wallet=wallet,
                 positions=positions,
@@ -318,10 +341,17 @@ class PortfolioService:
                         cost_basis=amount,
                         realized_pnl=0.0,
                         opened_at=now,
+                        # Seed the trailing-stop peak at the execution price so the
+                        # high-water mark is meaningful from the first mark-to-market.
+                        high_water_price=price,
                     )
                 else:
                     state.units = float(state.units) + units
                     state.cost_basis = float(state.cost_basis) + amount
+                    # Ratchet the peak up to the latest buy price (never down).
+                    state.high_water_price = max(
+                        float(state.high_water_price), price
+                    )
                 account.cash_balance = float(account.cash_balance) - amount
                 account.transactions.append(
                     self._buy_txn(symbol, amount, units, price)
@@ -420,6 +450,380 @@ class PortfolioService:
                 del account.positions[sym]
 
             return self.get_state(account_id)
+
+    # ------------------------------------------------------------------
+    # Risk policy (post-buy loss controls)
+    # ------------------------------------------------------------------
+
+    def get_risk_policy(self, account_id: str) -> RiskPolicy:
+        """Return the account's current :class:`~app.schemas.RiskPolicy`.
+
+        Args:
+            account_id: The account identifier.
+
+        Returns:
+            The stored policy (all fields ``None`` / OFF by default).
+        """
+        with self._store.lock:
+            account = self._store.get_account(account_id)
+            return self._policy_to_dto(account.risk_policy)
+
+    def set_risk_policy(self, account_id: str, policy: RiskPolicy) -> RiskPolicy:
+        """Validate and store the account's post-buy loss-control policy.
+
+        Every supplied threshold must be a finite number ``> 0`` (a percent);
+        omit a field or pass ``null`` to disable that rule. The policy never
+        affects buys — it is only consulted by :meth:`evaluate_risk`.
+
+        Args:
+            account_id: The account identifier.
+            policy: The desired :class:`~app.schemas.RiskPolicy`.
+
+        Returns:
+            The stored policy (echoes the validated input).
+
+        Raises:
+            ValueError: If any supplied threshold is ``<= 0`` or non-finite
+                (HTTP 400).
+        """
+        stop = self._validate_pct(policy.stop_loss_pct, "stopLossPct")
+        trail = self._validate_pct(policy.trailing_stop_pct, "trailingStopPct")
+        take = self._validate_pct(policy.take_profit_pct, "takeProfitPct")
+        draw = self._validate_pct(policy.max_drawdown_pct, "maxDrawdownPct")
+        with self._store.lock:
+            account = self._store.get_account(account_id)
+            account.risk_policy = RiskPolicyState(
+                stop_loss_pct=stop,
+                trailing_stop_pct=trail,
+                take_profit_pct=take,
+                max_drawdown_pct=draw,
+            )
+            return self._policy_to_dto(account.risk_policy)
+
+    def evaluate_risk(self, account_id: str) -> RiskApplyResult:
+        """Apply the account's :class:`~app.schemas.RiskPolicy` to held positions.
+
+        Marks every position to the current provider price, then, per the active
+        policy:
+
+        * **Stop-loss** — a position down more than ``stopLossPct`` from its
+          blended entry (avg-cost) price is fully sold.
+        * **Trailing stop** — a position down more than ``trailingStopPct`` from
+          its observed high-water-mark price is fully sold.
+        * **Take-profit** — a position up more than ``takeProfitPct`` above its
+          blended entry price is fully sold.
+        * **Max drawdown** — if total portfolio value is down more than
+          ``maxDrawdownPct`` from its peak, the worst-performing positions are
+          sold (worst unrealized-% first) until the drawdown is back within the
+          limit (raising cash / reducing exposure).
+
+        Each protective sell reuses :meth:`sell` (so accounting, the ledger and
+        cash all stay consistent) and is recorded as a :class:`~app.schemas.RiskAction`.
+        With an all-OFF policy (the default) nothing ever triggers.
+
+        Args:
+            account_id: The account identifier.
+
+        Returns:
+            A :class:`~app.schemas.RiskApplyResult` listing every protective
+            action taken plus the post-evaluation portfolio state.
+        """
+        with self._store.lock:
+            account = self._store.get_account(account_id)
+            policy = self._policy_to_dto(account.risk_policy)
+            actions: list[RiskAction] = []
+
+            # Refresh marks + ratchet the per-position / account peaks.
+            self.get_state(account_id)
+
+            # ---- Per-position rules (stop-loss / trailing / take-profit). ----
+            # Snapshot the symbols up front: selling mutates the positions dict.
+            for symbol in list(account.positions.keys()):
+                state = account.positions.get(symbol)
+                if state is None or float(state.units) <= _UNITS_EPS:
+                    continue
+                try:
+                    price = self._price(symbol)
+                except (KeyError, ValueError):
+                    continue
+                units = float(state.units)
+                cost_basis = float(state.cost_basis)
+                entry = cost_basis / units if units > _UNITS_EPS else 0.0
+                peak = max(float(state.high_water_price), price, entry)
+
+                action_type = None
+                reason = ""
+                if entry > 0.0:
+                    change_pct = (price / entry - 1.0) * 100.0
+                    drop_pct = (1.0 - price / peak) * 100.0 if peak > 0.0 else 0.0
+                    if (
+                        policy.stop_loss_pct is not None
+                        and change_pct <= -policy.stop_loss_pct
+                    ):
+                        action_type = "stop_loss"
+                        reason = (
+                            f"{symbol} is down {abs(change_pct):.2f}% from entry "
+                            f"(${entry:,.2f}); stop-loss is "
+                            f"{policy.stop_loss_pct:.2f}%."
+                        )
+                    elif (
+                        policy.take_profit_pct is not None
+                        and change_pct >= policy.take_profit_pct
+                    ):
+                        action_type = "take_profit"
+                        reason = (
+                            f"{symbol} is up {change_pct:.2f}% from entry "
+                            f"(${entry:,.2f}); take-profit is "
+                            f"{policy.take_profit_pct:.2f}%."
+                        )
+                    elif (
+                        policy.trailing_stop_pct is not None
+                        and drop_pct >= policy.trailing_stop_pct
+                    ):
+                        action_type = "trailing_stop"
+                        reason = (
+                            f"{symbol} is down {drop_pct:.2f}% from its peak "
+                            f"(${peak:,.2f}); trailing stop is "
+                            f"{policy.trailing_stop_pct:.2f}%."
+                        )
+
+                if action_type is not None:
+                    actions.append(
+                        self._protective_sell(
+                            account_id, symbol, action_type, reason
+                        )
+                    )
+
+            # ---- Portfolio-level drawdown circuit-breaker. ----
+            if policy.max_drawdown_pct is not None:
+                actions.extend(
+                    self._reduce_on_drawdown(account_id, policy.max_drawdown_pct)
+                )
+
+            state = self.get_state(account_id)
+            return RiskApplyResult(
+                actions=actions,
+                policy=policy,
+                state=state,
+                triggered=bool(actions),
+            )
+
+    # ------------------------------------------------------------------
+    # Risk-policy helpers
+    # ------------------------------------------------------------------
+
+    def _reduce_on_drawdown(
+        self, account_id: str, max_drawdown_pct: float
+    ) -> list[RiskAction]:
+        """Reduce exposure to a defensive cash floor when drawdown is breached.
+
+        A protective *sell* converts marked position value into an equal amount
+        of cash at the same price, so it does **not** change total account value
+        — the paper loss is already locked into the peak-vs-value drawdown and
+        cannot be "sold away". A drawdown circuit-breaker therefore de-risks
+        rather than tries to recover the number: when total portfolio value is
+        more than ``max_drawdown_pct`` below its peak, this sells the worst-
+        performing positions (worst unrealized-% first) until invested exposure
+        is at or below :data:`_DRAWDOWN_CASH_FLOOR` of total value (i.e. at least
+        a defensive cash floor is held), mirroring the auto-trader bot's
+        circuit-breaker. With no breach nothing is sold.
+
+        Args:
+            account_id: The account identifier.
+            max_drawdown_pct: The drawdown circuit-breaker threshold (percent).
+
+        Returns:
+            The protective :class:`~app.schemas.RiskAction` list (possibly empty).
+        """
+        actions: list[RiskAction] = []
+        account = self._store.get_account(account_id)
+
+        value, peak = self._account_value_and_peak(account_id)
+        if peak <= 0.0:
+            return actions
+        drawdown_pct = (1.0 - value / peak) * 100.0
+        if drawdown_pct <= max_drawdown_pct:
+            return actions  # within the limit — no de-risking needed.
+
+        # Target invested exposure after de-risking: hold at least the defensive
+        # cash floor of total value in cash.
+        target_invested = value * (1.0 - _DRAWDOWN_CASH_FLOOR)
+
+        # Sell worst-first until invested value is at/below the target (or no
+        # priceable positions remain). One sell per held position at most.
+        for _ in range(len(account.positions) + 1):
+            invested = self._invested_value(account_id)
+            if invested <= target_invested + _UNITS_EPS:
+                break
+            worst = self._worst_position(account_id)
+            if worst is None:
+                break
+            symbol, change_pct = worst
+            reason = (
+                f"Portfolio is down {drawdown_pct:.2f}% from its peak "
+                f"(${peak:,.2f}); max-drawdown limit is "
+                f"{max_drawdown_pct:.2f}%. Reducing exposure to a defensive "
+                f"cash floor by selling {symbol} (worst position, "
+                f"{change_pct:+.2f}% vs entry)."
+            )
+            actions.append(
+                self._protective_sell(account_id, symbol, "drawdown", reason)
+            )
+        return actions
+
+    def _invested_value(self, account_id: str) -> float:
+        """Return the current marked-to-market invested value (Σ market_value).
+
+        Args:
+            account_id: The account identifier.
+
+        Returns:
+            The total invested value as a finite, non-negative float.
+        """
+        account = self._store.get_account(account_id)
+        invested = 0.0
+        for state in account.positions.values():
+            try:
+                price = self._price(state.symbol)
+            except (KeyError, ValueError):
+                continue
+            mv = float(state.units) * price
+            if math.isfinite(mv):
+                invested += mv
+        return invested if math.isfinite(invested) and invested > 0.0 else max(
+            0.0, invested if math.isfinite(invested) else 0.0
+        )
+
+    def _account_value_and_peak(self, account_id: str) -> tuple[float, float]:
+        """Return ``(account_value, peak_value)`` for the drawdown check.
+
+        ``account_value`` is ``cash + Σ market_value``; ``peak_value`` is the
+        account's ratcheted high-water value.
+
+        Args:
+            account_id: The account identifier.
+
+        Returns:
+            A ``(value, peak)`` tuple of finite floats.
+        """
+        account = self._store.get_account(account_id)
+        cash = float(account.cash_balance)
+        invested = 0.0
+        for state in account.positions.values():
+            try:
+                price = self._price(state.symbol)
+            except (KeyError, ValueError):
+                continue
+            mv = float(state.units) * price
+            if math.isfinite(mv):
+                invested += mv
+        value = cash + invested
+        value = value if math.isfinite(value) else 0.0
+        peak = float(account.peak_value)
+        peak = peak if math.isfinite(peak) and peak > 0.0 else value
+        return value, peak
+
+    def _worst_position(self, account_id: str) -> tuple[str, float] | None:
+        """Return the worst-performing held position by unrealized return %.
+
+        Args:
+            account_id: The account identifier.
+
+        Returns:
+            A ``(symbol, change_pct)`` tuple for the position with the lowest
+            unrealized return vs entry, or ``None`` if there are no priceable
+            positions.
+        """
+        account = self._store.get_account(account_id)
+        worst: tuple[str, float] | None = None
+        for state in account.positions.values():
+            units = float(state.units)
+            if units <= _UNITS_EPS:
+                continue
+            try:
+                price = self._price(state.symbol)
+            except (KeyError, ValueError):
+                continue
+            cost_basis = float(state.cost_basis)
+            entry = cost_basis / units if units > _UNITS_EPS else 0.0
+            change_pct = (price / entry - 1.0) * 100.0 if entry > 0.0 else 0.0
+            if worst is None or change_pct < worst[1]:
+                worst = (state.symbol, change_pct)
+        return worst
+
+    def _protective_sell(
+        self, account_id: str, symbol: str, action: str, reason: str
+    ) -> RiskAction:
+        """Liquidate ``symbol`` and build the corresponding :class:`RiskAction`.
+
+        Args:
+            account_id: The account identifier.
+            symbol: The position to sell in full.
+            action: The :data:`~app.schemas.RiskActionType` that fired.
+            reason: Human-readable explanation for the action.
+
+        Returns:
+            A populated :class:`~app.schemas.RiskAction`.
+        """
+        account = self._store.get_account(account_id)
+        state = account.positions.get(symbol)
+        units = float(state.units) if state is not None else 0.0
+        cost_basis = float(state.cost_basis) if state is not None else 0.0
+        price = self._price(symbol)
+        # Realized P&L mirrors PortfolioService.sell's accounting for a full exit.
+        realized = units * price - cost_basis
+        self.sell(account_id, symbol, sell_all=True)
+        return RiskAction(
+            symbol=symbol,
+            action=action,  # type: ignore[arg-type]
+            reason=reason,
+            amount=round(self._finite(units * price), 2),
+            units_sold=round(self._finite(units), 8),
+            price=round(self._finite(price), 6),
+            realized_pnl=round(self._finite(realized), 2),
+        )
+
+    @staticmethod
+    def _policy_to_dto(state: RiskPolicyState) -> RiskPolicy:
+        """Project a stored :class:`RiskPolicyState` onto the wire DTO.
+
+        Args:
+            state: The stored risk-policy state.
+
+        Returns:
+            The equivalent :class:`~app.schemas.RiskPolicy`.
+        """
+        return RiskPolicy(
+            stop_loss_pct=state.stop_loss_pct,
+            trailing_stop_pct=state.trailing_stop_pct,
+            take_profit_pct=state.take_profit_pct,
+            max_drawdown_pct=state.max_drawdown_pct,
+        )
+
+    @staticmethod
+    def _validate_pct(value: float | None, field: str) -> float | None:
+        """Validate one optional percentage threshold.
+
+        Args:
+            value: The supplied percent (or ``None`` to disable the rule).
+            field: The camelCase field name (for the error message).
+
+        Returns:
+            The validated positive percent, or ``None`` when disabled.
+
+        Raises:
+            ValueError: If ``value`` is not ``None`` and is ``<= 0`` or
+                non-finite.
+        """
+        if value is None:
+            return None
+        try:
+            pct = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{field} must be a number.") from None
+        if not math.isfinite(pct) or pct <= 0.0:
+            raise ValueError(f"{field} must be a positive percentage.")
+        return pct
 
     # ------------------------------------------------------------------
     # Transaction builders

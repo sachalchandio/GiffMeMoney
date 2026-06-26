@@ -19,6 +19,7 @@ import { AllocationBuilder, type AllocationRow } from '@/components/domain/Alloc
 import { PositionCard } from '@/components/domain/PositionCard';
 import { TransactionList } from '@/components/domain/TransactionList';
 import { AdvicePanel } from '@/components/domain/AdvicePanel';
+import { RiskControls } from '@/components/domain/RiskControls';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -219,6 +220,8 @@ export default function InvestPage(): JSX.Element {
           </div>
 
           <AdvicePanel amount={cash > 0 ? cash : 1000} advice={advice} onApply={applyAdvice} />
+
+          <RiskControls positionsCount={positions.length} />
         </div>
       </div>
 

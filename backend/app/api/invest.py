@@ -50,6 +50,8 @@ from app.schemas import (
     InvestRequest,
     PortfolioHistory,
     PortfolioState,
+    RiskApplyResult,
+    RiskPolicy,
     SavedCard,
     SellRequest,
     Transaction,
@@ -586,6 +588,137 @@ def portfolio_history(
 
 
 # ---------------------------------------------------------------------------
+# Risk-policy routes (post-buy loss controls)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/portfolio/risk",
+    response_model=RiskPolicy,
+    summary="Get the account's post-buy loss-control policy",
+    tags=["portfolio"],
+    description=(
+        "Return the account's risk policy: the optional stop-loss, trailing-"
+        "stop, take-profit and max-drawdown thresholds (each a positive percent, "
+        "or `null` when that rule is OFF). All rules default to OFF.\n\n"
+        "These are protective **exit** rules for already-held positions; they "
+        "never block or change a buy and only act when "
+        "`POST /api/portfolio/risk/apply` is called. This is a simulation on "
+        "synthetic data — risk controls do not guarantee a profit or prevent "
+        "loss."
+    ),
+    responses={200: {"description": "The account's risk policy (OFF by default)."}},
+)
+def get_risk_policy(
+    x_account_id: AccountHeader = "demo",
+    account_id: str = Depends(account_id_dep),
+) -> RiskPolicy:
+    """Return the account's current post-buy loss-control policy.
+
+    Args:
+        x_account_id: Documentation-only echo of the ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
+
+    Returns:
+        The stored :class:`~app.schemas.RiskPolicy` (all-OFF by default).
+    """
+    return _portfolio_service().get_risk_policy(account_id)
+
+
+@router.put(
+    "/portfolio/risk",
+    response_model=RiskPolicy,
+    summary="Set the account's post-buy loss-control policy",
+    tags=["portfolio"],
+    description=(
+        "Replace the account's risk policy. Each threshold is an optional "
+        "positive percent; omit a field or send `null` to disable that rule.\n\n"
+        "- `stopLossPct` — exit a position once down more than this % from "
+        "entry.\n"
+        "- `trailingStopPct` — exit a position once down more than this % from "
+        "its high-water mark.\n"
+        "- `takeProfitPct` — exit a position once up more than this % from "
+        "entry.\n"
+        "- `maxDrawdownPct` — reduce exposure once total value is down more than "
+        "this % from its peak.\n\n"
+        "Setting a policy does not act on positions; call "
+        "`POST /api/portfolio/risk/apply` to evaluate it.\n\n"
+        "**Status codes**\n"
+        "- `200` — policy stored; the saved policy is returned.\n"
+        "- `400` — a supplied threshold is not a positive number."
+    ),
+    responses={
+        200: {"description": "Policy stored; the saved policy is returned."},
+        400: {"description": "A supplied threshold is not a positive number."},
+    },
+)
+def set_risk_policy(
+    body: RiskPolicy,
+    x_account_id: AccountHeader = "demo",
+    account_id: str = Depends(account_id_dep),
+) -> RiskPolicy:
+    """Validate and store the account's post-buy loss-control policy.
+
+    Args:
+        body: The desired :class:`~app.schemas.RiskPolicy` (camelCase on the
+            wire; ``null`` disables a rule).
+        x_account_id: Documentation-only echo of the ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
+
+    Returns:
+        The stored :class:`~app.schemas.RiskPolicy`.
+
+    Raises:
+        HTTPException: ``400`` if any supplied threshold is ``<= 0`` /
+            non-finite.
+    """
+    try:
+        return _portfolio_service().set_risk_policy(account_id, body)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/portfolio/risk/apply",
+    response_model=RiskApplyResult,
+    summary="Evaluate the risk policy and take any protective actions",
+    tags=["portfolio"],
+    description=(
+        "Mark every position to the current price and apply the account's risk "
+        "policy: stop-loss / trailing-stop / take-profit auto-sell breaching "
+        "positions, and a max-drawdown breach reduces exposure (sells the worst "
+        "positions / raises cash). Returns the triggered actions plus the "
+        "updated portfolio state.\n\n"
+        "With the default all-OFF policy nothing triggers. This is a simulation "
+        "on synthetic data — the controls are mechanical, after-the-fact exits "
+        "and do not guarantee a profit or prevent loss."
+    ),
+    responses={
+        200: {
+            "description": (
+                "Risk policy evaluated; triggered actions + updated state."
+            )
+        }
+    },
+)
+def apply_risk_policy(
+    x_account_id: AccountHeader = "demo",
+    account_id: str = Depends(account_id_dep),
+) -> RiskApplyResult:
+    """Evaluate the account's risk policy and take any protective actions.
+
+    Args:
+        x_account_id: Documentation-only echo of the ``X-Account-Id`` header.
+        account_id: The resolved account id (token / header / ``'demo'``).
+
+    Returns:
+        A :class:`~app.schemas.RiskApplyResult` with the actions taken and the
+        post-evaluation :class:`~app.schemas.PortfolioState`.
+    """
+    return _portfolio_service().evaluate_risk(account_id)
+
+
+# ---------------------------------------------------------------------------
 # Advisor route
 # ---------------------------------------------------------------------------
 
@@ -640,6 +773,8 @@ def allocate(
             body.amount,
             body.risk_tolerance,
             asset_classes=body.asset_classes,
+            target_amount=body.target_amount,
+            horizon_days=body.horizon_days,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

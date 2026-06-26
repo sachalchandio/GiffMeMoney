@@ -22,6 +22,7 @@ from app.schemas import SavedCard, Transaction
 
 __all__ = [
     "PositionState",
+    "RiskPolicyState",
     "Account",
     "AccountStore",
     "get_store",
@@ -44,6 +45,12 @@ class PositionState:
             symbol (can be negative).
         opened_at: Unix timestamp in milliseconds when the position first
             opened.
+        high_water_price: Highest mark price ever observed for this position
+            (the peak used by the trailing-stop rule). Seeded to the first buy's
+            execution price and ratcheted up — never down — as the position is
+            marked to market. ``0.0`` means "not yet observed" (treated as the
+            blended entry price on first evaluation). Additive field; defaults to
+            ``0.0`` so older constructions stay valid.
     """
 
     symbol: str
@@ -51,6 +58,36 @@ class PositionState:
     cost_basis: float
     realized_pnl: float
     opened_at: int
+    high_water_price: float = 0.0
+
+
+@dataclass
+class RiskPolicyState:
+    """Per-account post-buy loss controls (all optional, default OFF/``None``).
+
+    These are protective *exit* rules applied to already-held positions by
+    :meth:`app.invest.portfolio_service.PortfolioService.evaluate_risk`. They
+    never block or alter buys; they only trigger protective sells / de-risking on
+    demand. Every threshold is a positive percentage; ``None`` means the rule is
+    disabled. Defaults are all ``None`` so the feature is OFF unless the account
+    owner opts in (no behaviour change for existing accounts).
+
+    Attributes:
+        stop_loss_pct: Hard stop — sell a position once it is down more than this
+            percent from its blended entry (average-cost) price.
+        trailing_stop_pct: Trailing stop — sell a position once it falls more than
+            this percent below its observed high-water mark price.
+        take_profit_pct: Profit target — sell a position once it is up more than
+            this percent above its blended entry price.
+        max_drawdown_pct: Portfolio circuit-breaker — when total portfolio value
+            is down more than this percent from its peak, reduce exposure (sell
+            the worst-performing positions / raise cash).
+    """
+
+    stop_loss_pct: float | None = None
+    trailing_stop_pct: float | None = None
+    take_profit_pct: float | None = None
+    max_drawdown_pct: float | None = None
 
 
 @dataclass
@@ -63,6 +100,10 @@ class Account:
         positions: Open positions keyed by canonical (upper-case) symbol.
         saved_cards: Tokenized, masked cards on file (never raw PAN/CVC).
         transactions: Immutable ledger, appended in chronological order.
+        risk_policy: Per-account post-buy loss controls (default all-OFF).
+        peak_value: Highest total portfolio value (cash + marked positions)
+            observed so far, used by the ``max_drawdown_pct`` circuit-breaker.
+            ``0.0`` means "not yet observed".
     """
 
     account_id: str
@@ -70,6 +111,8 @@ class Account:
     positions: dict[str, PositionState] = field(default_factory=dict)
     saved_cards: list[SavedCard] = field(default_factory=list)
     transactions: list[Transaction] = field(default_factory=list)
+    risk_policy: RiskPolicyState = field(default_factory=RiskPolicyState)
+    peak_value: float = 0.0
 
 
 class AccountStore:

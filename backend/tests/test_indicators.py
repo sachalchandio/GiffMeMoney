@@ -14,6 +14,7 @@ to safe finite neutral values, never raise).
 from __future__ import annotations
 
 import math
+import warnings
 
 import numpy as np
 import pytest
@@ -76,6 +77,24 @@ def test_adx_short_input_is_zero() -> None:
     """Too few bars -> no measurable directional strength (0.0)."""
     assert ind.adx([1.0], [1.0], [1.0]) == 0.0
     assert ind.adx([], [], []) == 0.0
+
+
+def test_adx_flat_series_emits_no_runtime_warning() -> None:
+    """A flat series (ATR ~0) must not raise a divide RuntimeWarning.
+
+    The directional divides are wrapped in ``np.errstate`` like the sibling
+    sites; under ``-W error`` a numpy RuntimeWarning would be promoted to an
+    exception, so a clean run on a flat series proves the warnings are silenced
+    without changing the (neutral, zero) output.
+    """
+    flat = np.full(40, 50.0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        value = ind.adx(flat, flat, flat, n=14)
+        pdi, mdi, adx_val = ind.adx_components(flat, flat, flat, n=14)
+    # Output unchanged: a flat tape has no directional strength.
+    assert value == pytest.approx(0.0)
+    assert (pdi, mdi, adx_val) == pytest.approx((0.0, 0.0, 0.0))
 
 
 # ---------------------------------------------------------------------------

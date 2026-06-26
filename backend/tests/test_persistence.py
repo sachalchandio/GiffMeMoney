@@ -34,7 +34,7 @@ from app.auth.store import (
     get_store as get_user_store,
 )
 from app.config import settings
-from app.invest.store import AccountStore, PositionState
+from app.invest.store import AccountStore, PositionState, RiskPolicyState
 from app.invest.store import get_store as get_account_store
 
 
@@ -169,7 +169,7 @@ def test_sql_user_store_rejects_duplicate_email(sqlite_settings: str) -> None:
 
 
 def test_sql_account_store_round_trip(sqlite_settings: str) -> None:
-    """A deposit (cash) and a position persist across a reload."""
+    """A deposit (cash), a position, the risk policy, HWM and peak persist on reload."""
     store = repositories.get_sql_account_store()
 
     # Mutate the live Account dataclass in place under the flush-on-release lock,
@@ -177,12 +177,17 @@ def test_sql_account_store_round_trip(sqlite_settings: str) -> None:
     with store.lock:
         account = store.get_account("demo")
         account.cash_balance = 1_234.56  # a simulated deposit
+        account.peak_value = 2_000.0
+        account.risk_policy = RiskPolicyState(
+            stop_loss_pct=10.0, max_drawdown_pct=25.0
+        )
         account.positions["AAPL"] = PositionState(
             symbol="AAPL",
             units=3.0,
             cost_basis=600.0,
             realized_pnl=0.0,
             opened_at=1_700_000_000_000,
+            high_water_price=275.0,
         )
     # Outermost lock release flushed the mutations to the temp db.
 
@@ -192,11 +197,18 @@ def test_sql_account_store_round_trip(sqlite_settings: str) -> None:
     with reloaded_store.lock:
         reloaded = reloaded_store.get_account("demo")
     assert reloaded.cash_balance == pytest.approx(1_234.56)
+    assert reloaded.peak_value == pytest.approx(2_000.0)
+    # Risk policy round-trips (set fields kept; unset stay None/OFF).
+    assert reloaded.risk_policy.stop_loss_pct == pytest.approx(10.0)
+    assert reloaded.risk_policy.max_drawdown_pct == pytest.approx(25.0)
+    assert reloaded.risk_policy.trailing_stop_pct is None
+    assert reloaded.risk_policy.take_profit_pct is None
     position = reloaded.positions.get("AAPL")
     assert position is not None
     assert position.units == pytest.approx(3.0)
     assert position.cost_basis == pytest.approx(600.0)
     assert position.opened_at == 1_700_000_000_000
+    assert position.high_water_price == pytest.approx(275.0)
 
 
 def test_sql_account_store_new_account_defaults(sqlite_settings: str) -> None:
