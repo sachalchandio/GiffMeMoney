@@ -1,0 +1,266 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>GiffMeMoney — How Investing Works</title>
+<style>
+  @page { size: A4; margin: 0; }
+  *{box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  :root{
+    --ink:#16203a; --muted:#5b6a86; --faint:#8a97b0; --line:#e4eaf3; --paper:#ffffff; --wash:#f5f8fc;
+    --em:#0f9e6e; --em2:#0b7a55; --emwash:#e8f7f0;
+    --in:#5848d8; --inwash:#eceaff; --am:#d98a06; --amwash:#fdf3e0; --rd:#dd474d; --rdwash:#fdebec;
+    --dark:#0d1626; --darkln:#22304a;
+  }
+  html,body{margin:0;font-family:"Segoe UI",-apple-system,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#cfd6e2;}
+  .sheet{width:210mm;min-height:297mm;background:var(--paper);margin:0 auto;padding:18mm 16mm 16mm;page-break-after:always;position:relative;overflow:hidden;}
+  .sheet:last-child{page-break-after:auto;}
+  h1,h2,h3{margin:0;line-height:1.15;letter-spacing:-0.01em;}
+  p{line-height:1.5;}
+  .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--em);}
+  .mono{font-family:"Cascadia Code",Consolas,monospace;}
+
+  /* ---------- COVER ---------- */
+  .cover{background:var(--dark);color:#eaf1fb;display:flex;flex-direction:column;justify-content:space-between;}
+  .cover .grid{position:absolute;inset:0;background-image:linear-gradient(#15203a 1px,transparent 1px),linear-gradient(90deg,#15203a 1px,transparent 1px);background-size:30px 30px;opacity:.5;}
+  .cover .inner{position:relative;}
+  .brandrow{display:flex;align-items:center;gap:12px;}
+  .mark{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#2bd49b,#0f9e6e);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:23px;color:#06231a;}
+  .cover h1{font-size:43px;font-weight:800;margin-top:30px;}
+  .cover h1 .g{color:#2bd49b;}
+  .cover .lede{font-size:15.5px;color:#aab8d0;max-width:150mm;margin-top:16px;line-height:1.55;}
+  .pills{display:flex;gap:10px;margin-top:26px;flex-wrap:wrap;}
+  .pill{font-size:12px;padding:8px 14px;border-radius:999px;border:1px solid #2b3b58;color:#cdd9ec;}
+  .pill b{color:#2bd49b;}
+  .coverfoot{position:relative;font-size:11.5px;color:#7a89a6;border-top:1px solid #22304a;padding-top:14px;}
+
+  /* ---------- generic ---------- */
+  .ph{margin-bottom:14px;}
+  .ph h2{font-size:25px;font-weight:800;}
+  .ph .sub{color:var(--muted);font-size:13.5px;margin-top:6px;max-width:165mm;line-height:1.5;}
+  .kicker{display:inline-block;font-size:11px;font-weight:800;color:#fff;background:var(--em);border-radius:6px;padding:3px 9px;margin-bottom:10px;letter-spacing:.4px;}
+  .kicker.in{background:var(--in);} .kicker.am{background:var(--am);} .kicker.rd{background:var(--rd);}
+
+  /* ---------- flow nodes ---------- */
+  .flow{margin:6px 0 4px;}
+  .node{border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;background:var(--paper);box-shadow:0 1px 0 rgba(20,30,50,.03);}
+  .node .nt{font-weight:700;font-size:13.5px;}
+  .node .nd{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.4;}
+  .node.em{background:var(--emwash);border-color:#bfe8d6;} .node.em .nt{color:var(--em2);}
+  .node.in{background:var(--inwash);border-color:#cfc9fb;} .node.in .nt{color:#4434c0;}
+  .node.am{background:var(--amwash);border-color:#f0dcae;} .node.am .nt{color:#a96a04;}
+  .node.rd{background:var(--rdwash);border-color:#f4c8ca;} .node.rd .nt{color:#bd363c;}
+  .arrow{display:flex;justify-content:center;align-items:center;color:var(--faint);font-size:16px;padding:3px 0;}
+  .arrow .lbl{font-size:10px;font-weight:700;color:var(--faint);margin-left:7px;letter-spacing:.5px;}
+  .branch{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .branch.two{grid-template-columns:1fr 1fr;}
+  .ic{font-size:17px;margin-right:6px;}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;margin-top:6px;font-size:12.5px;}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);}
+  th{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);font-weight:700;}
+  td.em{color:var(--em2);font-weight:700;}
+
+  /* callout */
+  .call{border-radius:12px;padding:13px 16px;margin-top:14px;font-size:12.5px;line-height:1.5;}
+  .call.warn{background:var(--rdwash);border:1px solid #f4c8ca;color:#8f2c31;}
+  .call.good{background:var(--emwash);border:1px solid #bfe8d6;color:#0a5f43;}
+  .call b{font-weight:800;}
+  .call .ct{font-weight:800;font-size:13px;display:block;margin-bottom:3px;}
+
+  /* family cards */
+  .fam{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:4px;}
+  .fcard{border:1.5px solid var(--line);border-radius:13px;padding:12px 14px;position:relative;}
+  .fcard .q{font-weight:800;font-size:13.5px;}
+  .fcard .role{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:5px;}
+  .fcard .an{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.45;}
+  .fcard .nm{font-size:10px;color:var(--faint);margin-top:7px;}
+  .f1{border-left:4px solid var(--em);} .f1 .role{color:var(--em2);}
+  .f2{border-left:4px solid var(--in);} .f2 .role{color:#4434c0;}
+  .f3{border-left:4px solid var(--am);} .f3 .role{color:#a96a04;}
+  .f4{border-left:4px solid var(--rd);} .f4 .role{color:#bd363c;}
+  .f5{border-left:4px solid #1199c4;} .f5 .role{color:#0d7ea3;}
+  .consensus{margin-top:11px;background:var(--dark);color:#eaf1fb;border-radius:13px;padding:13px 16px;display:flex;align-items:center;gap:14px;}
+  .consensus .big{font-size:13.5px;font-weight:800;color:#2bd49b;}
+  .consensus .ct{font-size:11.5px;color:#aab8d0;line-height:1.45;}
+
+  /* app strip */
+  .strip{display:flex;align-items:stretch;gap:0;margin-top:6px;}
+  .step{flex:1;border:1.5px solid var(--line);border-radius:11px;padding:10px 11px;}
+  .chev{display:flex;align-items:center;color:var(--faint);font-size:15px;padding:0 5px;}
+  .step .st{font-weight:700;font-size:12px;} .step .sd{font-size:10px;color:var(--muted);margin-top:2px;line-height:1.35;}
+  .saferail{margin-top:11px;background:var(--rdwash);border:1px dashed #eaa9ac;border-radius:11px;padding:10px 14px;font-size:11.5px;color:#9a3036;}
+  .saferail b{color:#b23036;}
+
+  /* pitch */
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px;}
+  .why{border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;}
+  .why h3{font-size:13.5px;margin-bottom:7px;}
+  .why ul{margin:0;padding-left:16px;} .why li{font-size:11.8px;color:#33405c;line-height:1.5;margin-bottom:5px;}
+  .say{background:var(--wash);border-radius:12px;padding:13px 16px;margin-top:12px;font-size:12.5px;line-height:1.55;border:1px solid var(--line);}
+  .say .qt{font-style:italic;color:#22304a;border-left:3px solid var(--em);padding-left:12px;}
+  .steps3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px;margin-top:10px;}
+  .s3{border:1.5px solid var(--line);border-radius:12px;padding:12px;text-align:center;}
+  .s3 .n{font-size:22px;font-weight:800;color:var(--em);} .s3 .t{font-weight:700;font-size:12.5px;margin-top:3px;} .s3 .d{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;}
+
+  .foot{position:absolute;bottom:9mm;left:16mm;right:16mm;display:flex;justify-content:space-between;font-size:9.5px;color:var(--faint);border-top:1px solid var(--line);padding-top:7px;}
+  .pgnum{font-weight:700;}
+</style></head><body>
+
+<!-- ============ COVER ============ -->
+<section class="sheet cover">
+  <div class="grid"></div>
+  <div class="inner">
+    <div class="brandrow"><div class="mark">G</div>
+      <div class="mono" style="font-size:12px;color:#9fb0c9;letter-spacing:1px;">GiffMeMoney · plain-language guide</div></div>
+    <h1>How a <span class="g">$20</span> investment<br>actually grows —<br>and how this app does it.</h1>
+    <p class="lede">No finance degree needed. This guide explains, in everyday words and simple flowcharts, how investing turns money into more money, why we use the maths we use, and exactly what your app does at every step — so you understand it and can explain it to anyone.</p>
+    <div class="pills">
+      <div class="pill">🐐 <b>Real</b> growth, explained simply</div>
+      <div class="pill">🗳️ <b>Why</b> these algorithms</div>
+      <div class="pill">🛡️ <b>Honest</b> about risk</div>
+    </div>
+  </div>
+  <div class="coverfoot">Educational only · not financial advice · capital is at risk · the app runs on practice data and ships with live trading OFF</div>
+</section>
+
+<!-- ============ PAGE 2 — HOW $20 GROWS ============ -->
+<section class="sheet">
+  <div class="ph"><span class="kicker">Part 1</span>
+    <h2>How your $20 turns into profit</h2>
+    <p class="sub">When you invest, your money doesn’t sit still — it buys a small piece of something real that can grow or pay you. Follow the arrows: this is the whole idea on one page.</p>
+  </div>
+
+  <div class="flow">
+    <div class="node em"><div class="nt">① You put in $20</div><div class="nd">Your money goes into a wallet, ready to be put to work.</div></div>
+    <div class="arrow">▼<span class="lbl">BUYS A SLICE</span></div>
+    <div class="node"><div class="nt">② It buys a tiny piece of a real asset</div><div class="nd">A share of a company, a bit of crypto, or a basket (ETF). You now own something — like owning one goat in a herd, or one brick of a shop.</div></div>
+    <div class="arrow">▼<span class="lbl">THREE WAYS IT EARNS</span></div>
+    <div class="branch">
+      <div class="node em"><div class="nt"><span class="ic">🐐</span>Price rises</div><div class="nd">Buy the goat for $20, it grows, market price rises, sell for $24. The $4 is profit. (“Capital gain.”)</div></div>
+      <div class="node em"><div class="nt"><span class="ic">🌳</span>It pays you</div><div class="nd">Like a mango tree giving fruit every season — some companies pay owners a small cash share. (“Dividend.”)</div></div>
+      <div class="node em"><div class="nt"><span class="ic">♻️</span>Compounding</div><div class="nd">Reinvest the profit and next time you earn on a bigger amount. The goat has a kid; now two goats. Money making money.</div></div>
+    </div>
+    <div class="arrow">▼</div>
+    <div class="node"><div class="nt">③ Over time, your slice is worth more — and you can withdraw anytime</div><div class="nd">Sell when you like and take your money out. Profit is what you get back minus the $20 you put in.</div></div>
+  </div>
+
+  <h3 style="font-size:14px;margin-top:16px;">What $20 realistically becomes (≈10%/year, a healthy market average)</h3>
+  <table>
+    <tr><th>Time invested</th><th>Your $20 grows to ≈</th><th>Profit</th><th>What it means</th></tr>
+    <tr><td>1 year</td><td class="em">$22</td><td>$2</td><td>Great percentage, small in dollars — that’s just starting tiny.</td></tr>
+    <tr><td>5 years</td><td class="em">$32</td><td>$12</td><td>Compounding starts to show.</td></tr>
+    <tr><td>10 years</td><td class="em">$52</td><td>$32</td><td>Your money more than doubled — without you doing anything.</td></tr>
+    <tr><td>30 years</td><td class="em">$350</td><td>$330</td><td>The “slow magic” — patience is the real superpower.</td></tr>
+  </table>
+
+  <div class="call warn"><span class="ct">⚠️ The honest reality (and your app agrees)</span>
+    Turning <b>$20 into $2,000 in two months</b> means earning about <b>+11% every single day</b>. No real investment does that — that’s a lottery ticket, and lottery tickets usually lose. Your app actually <b>flags this as impossible</b> on purpose. Real wealth is <b>small + regular + patient</b>: invest a little, often, for years.</div>
+  <div class="call good"><span class="ct">✓ And the other side of the coin</span>
+    Prices can fall too — your $20 could dip to $16. That’s why the app keeps a <b>cash cushion</b> and can <b>auto-sell if a holding drops too far</b>, so one bad day can’t wipe you out.</div>
+
+  <div class="foot"><span>GiffMeMoney · How investing works</span><span class="pgnum">2</span></div>
+</section>
+
+<!-- ============ PAGE 3 — THE ALGORITHMS ============ -->
+<section class="sheet">
+  <div class="ph"><span class="kicker in">Part 2</span>
+    <h2>The “algorithms,” in plain words — and why these</h2>
+    <p class="sub">An investing algorithm is just a <b>written rule</b> for what to buy, how much, and when to sell — so a computer follows it calmly, the same way every time, with no fear and no greed. The app has ~73 rules, but they’re really <b>five families</b>, each answering one human question.</p>
+  </div>
+
+  <div class="fam">
+    <div class="fcard f1"><div class="role">① Value — the careful buyer</div><div class="q">“Is this a good business at a fair price?”</div><div class="an">Like reading a shop’s account book before buying it: Is it actually profitable? Buried in debt? Cheap for what it earns? <b>This is how Warren Buffett got rich.</b></div><div class="nm mono">DCF · Graham · Piotroski · Magic Formula · Altman-Z</div></div>
+    <div class="fcard f2"><div class="role">② Momentum — the trend rider</div><div class="q">“Which way is the crowd moving?”</div><div class="an">A crowd running one way usually keeps going a while. Ride the trend; step aside when it turns. <b>One of the most proven patterns in 200 years of markets.</b></div><div class="nm mono">Moving averages · MACD · Dual Momentum · Trend-following</div></div>
+    <div class="fcard f3"><div class="role">③ Mean reversion — the rubber band</div><div class="q">“Has it stretched too far and will snap back?”</div><div class="an">A rubber band pulled too far snaps back. A price that spikes unusually high or low often returns toward normal. Good for shorter swings.</div><div class="nm mono">RSI · Bollinger Bands · Z-score reversion</div></div>
+    <div class="fcard f4"><div class="role">④ Risk — the bodyguard</div><div class="q">“How do I not lose my shirt?”</div><div class="an">Don’t put all eggs in one basket; spread across things that don’t all fall together; size each bet so one loss can’t ruin you. <b>Markowitz won a Nobel Prize proving this.</b></div><div class="nm mono">Markowitz · Sharpe/Sortino · VaR/CVaR · Kelly</div></div>
+    <div class="fcard f5"><div class="role">⑤ Pricing — the fortune-teller (honest one)</div><div class="q">“What’s a fair price, and what could happen?”</div><div class="an">Instead of faking one certain future, it <b>rolls the dice thousands of times</b> to show a range: best case, normal, worst case.</div><div class="nm mono">CAPM · Black-Scholes · Monte Carlo · GARCH</div></div>
+    <div class="fcard" style="border-left:4px solid #888;display:flex;flex-direction:column;justify-content:center;"><div class="role" style="color:#555;">Why not the others?</div><div class="an" style="margin-top:2px;">We deliberately threw out <b>hot-tip picking, chart “magic” with no evidence, and anything promising guaranteed or huge returns</b> — that promise is the #1 sign of a scam. We kept only methods that are <b>published, peer-reviewed, and decades-tested.</b></div></div>
+  </div>
+
+  <div class="consensus">
+    <div class="big" style="white-space:nowrap;">🗳️ The vote</div>
+    <div class="ct"><b style="color:#fff;">Why blend 73 instead of trusting one?</b> No single rule is right all the time — each family shines in different “weather” (calm, boom, crash). The app asks them all and goes with the <b style="color:#fff;">weighted consensus</b>, like a council of experienced elders voting — steadier than betting everything on one loud opinion. Then it shows the <b style="color:#fff;">range of outcomes</b>, not a fake single number.</div>
+  </div>
+
+  <div class="foot"><span>GiffMeMoney · Why these methods</span><span class="pgnum">3</span></div>
+</section>
+
+<!-- ============ PAGE 4 — YOUR APP END TO END ============ -->
+<section class="sheet">
+  <div class="ph"><span class="kicker am">Part 3</span>
+    <h2>Your app, end to end — what actually happens</h2>
+    <p class="sub">Here’s the whole machine in one read. Each box is a real part of what you built; the arrows are the journey a user takes from signing in to taking money out.</p>
+  </div>
+
+  <div class="strip">
+    <div class="step"><div class="st">1 · Sign in</div><div class="sd">Email + password, or a one-tap demo.</div></div>
+    <div class="chev">›</div>
+    <div class="step"><div class="st">2 · Engine analyzes</div><div class="sd">The 5 families score every asset and vote.</div></div>
+    <div class="chev">›</div>
+    <div class="step"><div class="st">3 · Advisor builds a basket</div><div class="sd">Spreads your money + keeps a cash cushion.</div></div>
+    <div class="chev">›</div>
+    <div class="step"><div class="st">4 · You fund & invest</div><div class="sd">Add money, confirm, buy your slices.</div></div>
+  </div>
+  <div class="arrow">▼</div>
+  <div class="strip">
+    <div class="step"><div class="st">5 · Live profit/loss</div><div class="sd">Watch each holding and the total update in real time.</div></div>
+    <div class="chev">›</div>
+    <div class="step"><div class="st">6 · Auto-protections</div><div class="sd">Optional rules sell a holding if it drops too far, or trim risk in a downturn.</div></div>
+    <div class="chev">›</div>
+    <div class="step"><div class="st">7 · Withdraw anytime</div><div class="sd">Sell and take your money out whenever you want.</div></div>
+  </div>
+
+  <div style="margin-top:13px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    <div class="why"><h3 style="color:#4434c0;">🤖 Optional: the Auto-Trader</h3>
+      <p style="font-size:11.8px;color:#33405c;line-height:1.5;margin:0;">A hands-off mode that splits your money into portions, invests by a chosen style (Conservative → Aggressive), <b>rotates toward what’s working and away from what isn’t</b>, and shows you which approach did best — and worst. It’s a practice simulation, so you can learn the behaviour with zero risk.</p></div>
+    <div class="why"><h3 style="color:#0a5f43;">📈 What makes it trustworthy</h3>
+      <ul><li><b>It can’t cheat:</b> it never peeks at the future when testing a strategy.</li><li><b>It tells the truth:</b> outcomes are shown as a range, and it labels its data as practice data.</li><li><b>It protects first:</b> cash cushion + auto-sell rules are built in.</li></ul></div>
+  </div>
+
+  <div class="saferail">🛡️ <b>Safety gates — always on:</b> &nbsp; Paper-only by default (no real money moves) &nbsp;·&nbsp; Impossible-target guard (flags “$20→$2k in 2 months”) &nbsp;·&nbsp; No future-peeking &nbsp;·&nbsp; Honest “this is practice data” labelling.</div>
+
+  <div class="foot"><span>GiffMeMoney · The machine, explained</span><span class="pgnum">4</span></div>
+</section>
+
+<!-- ============ PAGE 5 — THE HONEST PITCH ============ -->
+<section class="sheet">
+  <div class="ph"><span class="kicker">Part 4</span>
+    <h2>How to explain it — and convince others (honestly)</h2>
+    <p class="sub">The strongest pitch isn’t “get rich quick.” It’s “grow your money the disciplined, proven, risk-managed way — and understand exactly what’s happening.” Honesty is what earns trust.</p>
+  </div>
+
+  <div class="two-col">
+    <div class="why"><h3 style="color:#0a5f43;">Why this beats guessing on your own</h3>
+      <ul>
+        <li><b>No emotions.</b> It follows rules, so it doesn’t panic-sell or chase hype like people do.</li>
+        <li><b>Spreads risk for you.</b> Nobel-prize maths splits money so one bad pick can’t sink you.</li>
+        <li><b>Many experts, not one.</b> 73 proven methods vote, instead of one risky hunch.</li>
+        <li><b>Shows the downside.</b> You see the worst case before you commit, not after.</li>
+        <li><b>Teaches you.</b> Every recommendation comes with a plain “why.”</li>
+      </ul></div>
+    <div class="why"><h3 style="color:#bd363c;">What to be honest about</h3>
+      <ul>
+        <li><b>Returns are modest.</b> Good investing is ~8–10%/year on average, not 100×.</li>
+        <li><b>You can lose money.</b> It manages risk; it can’t remove it.</li>
+        <li><b>It needs time.</b> The magic is compounding over years.</li>
+        <li><b>It’s practice data today.</b> A learning tool first; going live is a deliberate, separate, gated step.</li>
+      </ul></div>
+  </div>
+
+  <div class="say">
+    <div style="font-weight:800;font-size:12.5px;margin-bottom:7px;">💬 Say it like this to a friend with no finance background:</div>
+    <p class="qt" style="margin:0;">“It’s not a magic money machine — anyone who promises that is lying. It’s a calm, disciplined helper. You put in a little, it spreads it across solid choices using maths that won a Nobel Prize, it protects you if things drop, and it shows you the honest range of what could happen. Start small, add a bit each month, and let time do the heavy lifting.”</p>
+  </div>
+
+  <h3 style="font-size:14px;margin-top:16px;">How to actually start — the only three rules that matter</h3>
+  <div class="steps3">
+    <div class="s3"><div class="n">1</div><div class="t">Start small</div><div class="d">Only money you won’t need soon. $20 is a fine place to learn.</div></div>
+    <div class="s3"><div class="n">2</div><div class="t">Add regularly</div><div class="d">A little every month beats one lucky bet. This is the real secret.</div></div>
+    <div class="s3"><div class="n">3</div><div class="t">Be patient</div><div class="d">Let compounding work for years. Don’t panic when it dips.</div></div>
+  </div>
+
+  <div class="call good" style="margin-top:18px;"><span class="ct">The one-line bottom line</span>
+    The maths doesn’t create a secret fortune — it <b>removes panic, spreads risk, and tells the truth</b>. Do the boring superpower (small, regular, patient) and your money grows the way real wealth is actually built.</div>
+
+  <div class="foot"><span>GiffMeMoney · The honest case</span><span class="pgnum">5</span></div>
+</section>
+
+</body></html>
