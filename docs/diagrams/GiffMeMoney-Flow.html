@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>GiffMeMoney — System Flow</title>
+<style>
+  :root{
+    --ink:#0a0e17; --ink2:#121826; --surface:#161d2e; --line:#222b3d;
+    --emerald:#2bd49b; --indigo:#8b7dff; --amber:#f3a712; --red:#ff5d62;
+    --text:#dbe4f0; --muted:#7b88a0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--ink);color:var(--text);
+    font-family:"Segoe UI",-apple-system,Roboto,Helvetica,Arial,sans-serif;}
+  .poster{padding:34px 40px 44px;}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:8px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .mark{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--emerald),#0f9e6e);
+    display:flex;align-items:center;justify-content:center;font-weight:900;font-size:19px;color:#06231a;}
+  h1{margin:0;font-size:25px;letter-spacing:-.02em;font-weight:800;}
+  h1 b{color:var(--emerald);}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px;max-width:560px;line-height:1.45;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;font-size:11.5px;color:var(--muted);}
+  .lg{display:flex;align-items:center;gap:7px;}
+  .sw{width:26px;height:15px;border:1.5px solid;border-radius:4px;}
+  .sw.act{border-color:var(--line);background:var(--surface);border-radius:8px;}
+  .sw.dec{border-color:var(--amber);background:rgba(243,167,18,.16);transform:rotate(45deg);width:13px;height:13px;border-radius:2px;}
+  .sw.eng{border-color:var(--indigo);background:rgba(139,125,255,.16);clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);border-radius:0;}
+  .sw.go{border-color:var(--emerald);background:rgba(43,212,155,.18);border-radius:999px;}
+  .sw.stop{border-color:var(--red);background:rgba(255,93,98,.16);}
+  .sw.gate{border-color:var(--red);border-style:dashed;background:transparent;}
+  .mono{font-family:"Cascadia Code",Consolas,monospace;}
+  .mermaid{margin-top:10px;}
+  .foot{margin-top:14px;color:var(--muted);font-size:11px;display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:12px;}
+</style></head>
+<body><div class="poster">
+  <div class="head">
+    <div>
+      <div class="brand"><div class="mark">G</div>
+        <div><h1>Giff<b>Me</b>Money — the whole machine</h1>
+          <div class="sub">Every path, decision and safety gate: from the first login to the AI engine, the invest &amp; auto-trade flows, the loss controls, and the gated road to real money.</div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <div class="lg"><span class="sw go"></span>start / end</div>
+      <div class="lg"><span class="sw act"></span>action</div>
+      <div class="lg"><span class="sw dec"></span>decision</div>
+      <div class="lg"><span class="sw eng"></span><span class="mono">engine / system</span></div>
+      <div class="lg"><span class="sw stop"></span>stop / blocked</div>
+      <div class="lg"><span class="sw gate"></span>safety gate</div>
+    </div>
+  </div>
+
+  <pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{
+  'fontFamily':'Segoe UI, sans-serif','fontSize':'15px',
+  'background':'#0a0e17','primaryColor':'#161d2e','primaryTextColor':'#dbe4f0','primaryBorderColor':'#222b3d',
+  'lineColor':'#46546e','tertiaryColor':'#121826','clusterBkg':'#0e1422','clusterBorder':'#222b3d','titleColor':'#7b88a0',
+  'edgeLabelBackground':'#0a0e17'
+},'flowchart':{'curve':'basis','nodeSpacing':46,'rankSpacing':52,'padding':10}}%%
+flowchart TD
+
+  START(["Open GiffMeMoney"]):::go --> AUTH{"Logged in?"}:::dec
+  AUTH -->|"no"| LOGIN["Login · Sign up · Use demo<br/>demo@giffmemoney.app"]:::act
+  LOGIN --> CRED{"Credentials valid?"}:::dec
+  CRED -->|"no"| ERRC["Invalid email or password<br/>· retry"]:::stop
+  ERRC --> LOGIN
+  CRED -->|"yes · JWT issued"| HOME(["Dashboard"]):::go
+  AUTH -->|"yes · token hydrates"| HOME
+  TOKBAD{"Token expired<br/>on reload?"}:::dec -->|"yes"| LOGIN
+  HOME -.-> TOKBAD
+
+  HOME --> WANT{"What do you want to do?"}:::dec
+  WANT -->|"find ideas"| RECS["Recommendations<br/>ranked by composite"]:::act
+  WANT -->|"inspect an asset"| ASSET["Asset Detail · live chart"]:::act
+  WANT -->|"auto-invest"| INVEST["Invest"]:::act
+  WANT -->|"automate"| BOT["Auto-Trader"]:::act
+  WANT -->|"screen"| SCREEN["Screener · sort &amp; filter"]:::act
+  SCREEN --> ASSET
+  RECS --> ASSET
+
+  subgraph ENG["⬡ AI ENGINE — runs before every recommendation"]
+    direction TB
+    DATA[("Market data<br/>simulated · or live keys")]:::data --> E1{{"73 strategies score<br/>−100 … +100 + confidence"}}:::eng
+    REG{{"Regime detect<br/>bull · bear · vol"}}:::eng --> E2
+    E1 --> E2{{"Composite + confidence<br/>reliability-weighted"}}:::eng
+    E2 --> E3{{"Projection<br/>ensemble → shrink → CAP → fan"}}:::eng
+    E3 --> E4{{"Scenarios + CVaR<br/>bull · base · bear · downside"}}:::eng
+    E4 --> EOUT["Recommendation<br/>+ 5 horizons + why"]:::act
+  end
+  DATA -.->|"point-in-time only"| GATE_LA
+  ASSET --> ENG
+  RECS --> ENG
+  EOUT --> ASSET
+
+  INVEST --> FUND{"Wallet funded?"}:::dec
+  FUND -->|"no"| ADD["Add funds · debit card<br/>$20 quick-chip"]:::act
+  ADD --> LUHN{"Card valid? (Luhn)"}:::dec
+  LUHN -->|"no"| ERRCARD["Invalid card · fix &amp; retry"]:::stop --> ADD
+  LUHN -->|"yes"| SAVE{"Remember card?"}:::dec
+  SAVE -->|"yes · masked token"| DEP["Deposit<br/>sandbox · no real charge"]:::act
+  SAVE -->|"no"| DEP
+  DEP --> ALLOC["Build allocation"]:::act
+  FUND -->|"yes"| ALLOC
+
+  ALLOC --> HOWQ{"Pick how?"}:::dec
+  HOWQ -->|"manual"| LEGS["Choose assets + $ each"]:::act
+  HOWQ -->|"suggest for me"| ADV{{"Advisor"}}:::eng
+  ADV --> RISKQ{"Risk profile?"}:::dec
+  RISKQ -->|"conservative · balanced · aggressive"| OPT{{"CVaR / drawdown optimizer<br/>+ per-name cap"}}:::eng
+  OPT --> REGQ{"Bear regime or<br/>weak conviction?"}:::dec
+  REGQ -->|"yes"| CASH["Hold CASH sleeve<br/>de-risk exposure"]:::act
+  REGQ -->|"no"| RISKY["Higher risky exposure"]:::act
+  CASH --> BASK["Basket: weights + CASH%<br/>+ bull/base/bear + CVaR"]:::act
+  RISKY --> BASK
+  BASK --> DUST{"Drop dust<br/>(legs &lt; $1)"}:::dec
+  DUST -->|"prune + renormalize"| LEGS
+  LEGS --> SUFF{"Cash ≥ total?"}:::dec
+  SUFF -->|"no"| ERRF["Insufficient funds<br/>· lower amount"]:::stop --> ALLOC
+  SUFF -->|"yes"| BUY["Buy positions · cost basis"]:::go
+  BUY --> LIVE["Live P&amp;L + attribution<br/>updates every tick"]:::act
+
+  LIVE --> SETR{"Set loss protections?"}:::dec
+  SETR -->|"yes"| POL["Stop-loss · trailing · take-profit<br/>· max-drawdown"]:::act
+  POL --> APPLY{{"Evaluate vs live price"}}:::eng
+  APPLY --> TRIG{"Threshold breached?"}:::dec
+  TRIG -->|"stop / trailing / take-profit"| PSELL["Protective SELL<br/>· cash returned"]:::stop
+  TRIG -->|"portfolio drawdown"| DERISK["Cut to cash floor (50%)"]:::stop
+  TRIG -->|"no"| HOLD["Hold"]:::act
+  PSELL --> LIVE
+  DERISK --> LIVE
+  HOLD --> LIVE
+  SETR -->|"no"| EXITQ
+  LIVE --> EXITQ{"Sell / Withdraw?"}:::dec
+  EXITQ -->|"sell"| SELL["Sell · realize P&amp;L"]:::act --> LIVE
+  EXITQ -->|"withdraw"| WD["Withdraw to method"]:::act
+  EXITQ -->|"keep holding"| LIVE
+
+  BOT --> MODE{"Mode?"}:::dec
+  MODE -->|"Conservative · Balanced · Aggressive<br/>· Bandit · All-Weather"| RB{{"Each rebalance (~monthly)"}}:::eng
+  RB --> AN2{{"Market analysis<br/>regime + composite"}}:::eng
+  AN2 --> SEL{{"Candidate selection<br/>POINT-IN-TIME · no look-ahead"}}:::eng
+  SEL --> WTS{{"Optimize sleeve weights"}}:::eng
+  WTS --> ROT{{"Rotate: winners ↑ losers ↓<br/>bandit · NOT martingale"}}:::eng
+  ROT --> BRISK{{"Stop-loss + drawdown breaker"}}:::eng
+  BRISK --> MTM["Mark-to-market daily"]:::act
+  MTM --> MORE{"More bars?"}:::dec
+  MORE -->|"yes"| RB
+  MORE -->|"no"| RES["Equity vs buy &amp; hold<br/>+ best / WORST strategy"]:::act
+
+  WD --> REALQ{"Want REAL money?"}:::dec
+  RES --> REALQ
+  REALQ -->|"no · stay sandbox"| DONE(["Keep learning · paper"]):::go
+  REALQ -->|"yes"| STEP1["1 · Live data keys<br/>Finnhub · CoinGecko"]:::act
+  STEP1 --> STEP2["2 · Broker = Alpaca PAPER"]:::act
+  STEP2 --> STEP3["3 · Validate weeks on live-paper"]:::act
+  STEP3 --> GATE_LIVE
+  GATE_LIVE{{"⛔ LIVE GATE<br/>ALPACA_LIVE=1 + exact ack<br/>+ funded account · YOUR risk"}}:::gate --> LIVEON(["Live trading<br/>(ships OFF)"]):::go
+
+  subgraph GATES["⛔ SAFETY GATES — always on"]
+    direction TB
+    GATE_PAPER{{"Paper-only default<br/>no real money moves"}}:::gate
+    GATE_FEAS{{"Impossible-target guard<br/>$20→$2k/2mo flagged infeasible"}}:::gate
+    GATE_LA{{"No look-ahead<br/>point-in-time scoring"}}:::gate
+    GATE_SYN{{"Synthetic data<br/>not a deployable edge"}}:::gate
+  end
+  ADD -.-> GATE_PAPER
+  ADV -.-> GATE_FEAS
+  EOUT -.-> GATE_SYN
+  RES -.-> GATE_SYN
+
+  classDef go fill:#0f2a22,stroke:#2bd49b,stroke-width:1.4px,color:#bff3e0;
+  classDef act fill:#161d2e,stroke:#2c3650,stroke-width:1px,color:#dbe4f0;
+  classDef dec fill:#231a08,stroke:#f3a712,stroke-width:1.3px,color:#f6cf86;
+  classDef eng fill:#1b1733,stroke:#8b7dff,stroke-width:1.2px,color:#cfc8ff,font-family:Cascadia Code, monospace;
+  classDef data fill:#10182a,stroke:#8b7dff,stroke-width:1.2px,color:#7fe9c0,font-family:Cascadia Code, monospace;
+  classDef stop fill:#2a1012,stroke:#ff5d62,stroke-width:1.3px,color:#ffc3c5;
+  classDef gate fill:#1a0e10,stroke:#ff5d62,stroke-width:1.3px,stroke-dasharray:5 4,color:#f3a712;
+
+  style ENG fill:#0d1422,stroke:#2c2a55,stroke-width:1.5px,color:#a99cff;
+  style GATES fill:#190d11,stroke:#ff5d62,stroke-width:1.5px,color:#f3a712;
+</pre>
+
+  <div class="foot">
+    <div>Educational simulation · not financial advice · capital is at risk · live trading ships OFF</div>
+    <div>GiffMeMoney · system flow</div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true, securityLevel:'loose'});</script>
+</body></html>
