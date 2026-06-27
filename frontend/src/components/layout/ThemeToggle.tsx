@@ -24,7 +24,7 @@ export function ThemeToggle({ className }: ThemeToggleProps): JSX.Element {
       title={isDark ? 'Light mode' : 'Dark mode'}
       className={className}
     >
-      {isDark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+      {isDark ? <Sun className="h-[1.125rem] w-[1.125rem]" /> : <Moon className="h-[1.125rem] w-[1.125rem]" />}
     </Button>
   );
 }

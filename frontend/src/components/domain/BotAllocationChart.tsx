@@ -124,7 +124,7 @@ export function BotAllocationChart({
           </PieChart>
         </ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Deployed</span>
+          <span className="text-[0.625rem] font-medium uppercase tracking-wide text-muted">Deployed</span>
           <span className="text-lg font-semibold tnum text-text">{formatCurrency(total)}</span>
         </div>
       </div>

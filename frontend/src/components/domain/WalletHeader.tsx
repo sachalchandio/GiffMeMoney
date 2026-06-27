@@ -139,7 +139,7 @@ export function WalletHeader({
             Demo / sandbox — no real charge
           </Badge>
           {wallet.savedCards.length > 0 && (
-            <span className="text-[11px] text-muted">
+            <span className="text-[0.6875rem] text-muted">
               {wallet.savedCards.length} saved card{wallet.savedCards.length === 1 ? '' : 's'}
             </span>
           )}
@@ -162,7 +162,7 @@ function Metric({
 }): JSX.Element {
   return (
     <div className={cn('rounded-xl border border-border bg-surface-2/50 px-3 py-2.5', className)}>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{label}</p>
+      <p className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted">{label}</p>
       <p className={cn('mt-0.5 text-lg font-semibold tracking-tight tnum text-text', tone)}>{value}</p>
     </div>
   );

@@ -99,7 +99,7 @@ export function StrategyCard({
       {meta.formula && (
         <div className="flex items-start gap-1.5 rounded-xl bg-surface-2 px-2.5 py-1.5">
           <FunctionSquare className="mt-px h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-          <code className="break-words font-mono text-[11px] leading-snug text-text">
+          <code className="break-words font-mono text-[0.6875rem] leading-snug text-text">
             {meta.formula}
           </code>
         </div>
@@ -111,13 +111,13 @@ export function StrategyCard({
           {meta.inputs.slice(0, 4).map((input) => (
             <span
               key={input}
-              className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-muted"
+              className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[0.625rem] font-medium text-muted"
             >
               {input}
             </span>
           ))}
           {meta.inputs.length > 4 && (
-            <span className="rounded-md px-1 py-0.5 text-[10px] font-medium text-muted">
+            <span className="rounded-md px-1 py-0.5 text-[0.625rem] font-medium text-muted">
               +{meta.inputs.length - 4}
             </span>
           )}
@@ -126,7 +126,7 @@ export function StrategyCard({
 
       {/* References — pin to the bottom for a tidy grid */}
       {meta.references.length > 0 && (
-        <div className="mt-auto flex items-start gap-1.5 pt-1 text-[10px] leading-snug text-muted">
+        <div className="mt-auto flex items-start gap-1.5 pt-1 text-[0.625rem] leading-snug text-muted">
           <BookOpen className="mt-px h-3 w-3 shrink-0 opacity-70" aria-hidden />
           <span className="truncate" title={meta.references.join(' · ')}>
             {meta.references.join(' · ')}

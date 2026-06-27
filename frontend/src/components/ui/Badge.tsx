@@ -51,7 +51,7 @@ const OUTLINE: Record<BadgeTone, string> = {
 };
 
 const SIZES: Record<BadgeSize, string> = {
-  sm: 'h-5 px-1.5 text-[10px] gap-1',
+  sm: 'h-5 px-1.5 text-[0.625rem] gap-1',
   md: 'h-6 px-2 text-xs gap-1.5',
 };
 

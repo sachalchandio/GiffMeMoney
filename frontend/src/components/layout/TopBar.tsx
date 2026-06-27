@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { BrokerStatusBadge } from '@/components/domain/BrokerStatusBadge';
 import { ConnDot } from './ConnDot';
 import { ThemeToggle } from './ThemeToggle';
+import { ModeToggle } from './ModeToggle';
 import { useAuth } from '@/lib/auth';
 import { cn, initials } from '@/lib/utils';
 
@@ -79,9 +80,11 @@ export function TopBar({ onOpenSidebar }: TopBarProps): JSX.Element {
         </form>
 
         <div className="flex items-center gap-1 sm:gap-2">
+          {/* Easy ⇄ Expert — the detail-level switch (always visible). */}
+          <ModeToggle />
           {/* Data: Simulated|Live + Broker: Paper|LIVE (display-only; hidden on
               very narrow widths to keep the header uncluttered). */}
-          <div className="hidden md:flex">
+          <div className="hidden lg:flex">
             <BrokerStatusBadge />
           </div>
           <div className="hidden sm:flex">

@@ -253,7 +253,7 @@ export function AddFundsModal({ open, onClose, savedCards, onSuccess }: AddFunds
                 </span>
               </div>
               {number.length > 0 && !luhn(number) && digitsOnly(number).length >= expectedLength(brand) && (
-                <p className="mt-1 text-[11px] text-danger">That card number fails the Luhn check.</p>
+                <p className="mt-1 text-[0.6875rem] text-danger">That card number fails the Luhn check.</p>
               )}
             </Field>
 
@@ -309,7 +309,7 @@ export function AddFundsModal({ open, onClose, savedCards, onSuccess }: AddFunds
                 setExp('08/29');
                 setCvc('123');
               }}
-              className="self-start text-[11px] font-medium text-primary hover:underline"
+              className="self-start text-[0.6875rem] font-medium text-primary hover:underline"
             >
               Use the demo test card
             </button>
@@ -343,7 +343,7 @@ export function AddFundsModal({ open, onClose, savedCards, onSuccess }: AddFunds
         </div>
 
         {usingSaved && savedCardId && (
-          <p className="text-[11px] text-muted">
+          <p className="text-[0.6875rem] text-muted">
             Charging {maskCardNumber('0000' + (savedCards.find((c) => c.id === savedCardId)?.last4 ?? ''))} (saved card).
           </p>
         )}

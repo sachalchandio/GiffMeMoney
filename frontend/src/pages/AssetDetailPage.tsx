@@ -166,7 +166,7 @@ export default function AssetDetailPage(): JSX.Element {
           </CardHeader>
           <div className="mt-3">
             {candles.isPending ? (
-              <Skeleton className="h-[320px] w-full" />
+              <Skeleton className="h-[20rem] w-full" />
             ) : (
               <PriceChart candles={candles.data ?? []} type={chartType} height={320} />
             )}
@@ -229,7 +229,7 @@ export default function AssetDetailPage(): JSX.Element {
           </CardHeader>
           <div className="mt-3">
             {analysis.isPending || !data ? (
-              <Skeleton className="h-[280px] w-full" />
+              <Skeleton className="h-[17.5rem] w-full" />
             ) : (
               <ScenarioFanChart expectedReturns={data.expectedReturns} height={280} />
             )}
@@ -275,7 +275,7 @@ export default function AssetDetailPage(): JSX.Element {
         {monteCarlo.isError ? (
           <ChartEmpty className="mt-3" height={280} label="Simulation unavailable" />
         ) : monteCarlo.isPending || !monteCarlo.data ? (
-          <Skeleton className="mt-3 h-[280px] w-full" />
+          <Skeleton className="mt-3 h-[17.5rem] w-full" />
         ) : (
           <>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -299,7 +299,7 @@ export default function AssetDetailPage(): JSX.Element {
             <div className="mt-3">
               <DistributionChart result={monteCarlo.data} height={280} />
             </div>
-            <p className="mt-2 text-[11px] text-muted">
+            <p className="mt-2 text-[0.6875rem] text-muted">
               {formatCompact(monteCarlo.data.sims, 0)} simulated paths over {monteCarlo.data.steps}{' '}
               steps · {horizonLabel(monteCarlo.data.horizon)} horizon.
             </p>
@@ -375,7 +375,7 @@ function McStat({
 }): JSX.Element {
   return (
     <div className="flex flex-col gap-0.5 rounded-xl border border-border bg-surface-2 px-3 py-2.5">
-      <span className="text-[11px] font-medium text-muted">{label}</span>
+      <span className="text-[0.6875rem] font-medium text-muted">{label}</span>
       <span className={cn('text-base font-semibold tracking-tight tnum', tone)}>{value}</span>
     </div>
   );

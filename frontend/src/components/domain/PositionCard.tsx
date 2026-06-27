@@ -106,7 +106,7 @@ export function PositionCard({ position, className }: PositionCardProps): JSX.El
             Sell
           </Button>
         ) : (
-          <span className="text-[11px] text-muted">
+          <span className="text-[0.6875rem] text-muted">
             {position.realizedPnl !== 0 && (
               <>Realized {formatCurrency(position.realizedPnl, { currency: position.asset.currency })}</>
             )}
@@ -140,7 +140,7 @@ export function PositionCard({ position, className }: PositionCardProps): JSX.El
               type="button"
               onClick={() => doSell(true)}
               disabled={sell.isPending}
-              className="text-[11px] font-medium text-danger hover:underline disabled:opacity-50"
+              className="text-[0.6875rem] font-medium text-danger hover:underline disabled:opacity-50"
             >
               Sell entire position
             </button>
@@ -151,12 +151,12 @@ export function PositionCard({ position, className }: PositionCardProps): JSX.El
                 setError(null);
                 setSellAmount('');
               }}
-              className="text-[11px] font-medium text-muted hover:text-text"
+              className="text-[0.6875rem] font-medium text-muted hover:text-text"
             >
               Cancel
             </button>
           </div>
-          {error && <p className="text-[11px] font-medium text-danger" role="alert">{error}</p>}
+          {error && <p className="text-[0.6875rem] font-medium text-danger" role="alert">{error}</p>}
         </div>
       )}
     </Card>
@@ -166,7 +166,7 @@ export function PositionCard({ position, className }: PositionCardProps): JSX.El
 function Stat({ label, value }: { label: string; value: string }): JSX.Element {
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wide text-muted">{label}</span>
+      <span className="text-[0.625rem] uppercase tracking-wide text-muted">{label}</span>
       <span className="tnum font-medium text-text">{value}</span>
     </div>
   );

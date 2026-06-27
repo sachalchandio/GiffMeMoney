@@ -33,6 +33,9 @@ import { Button } from '@/components/ui/Button';
 import { StatCard } from '@/components/ui/StatCard';
 import { StanceBadge } from '@/components/ui/StanceBadge';
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
+import { EasyOnly, ExpertOnly, WhatThisMeans } from '@/components/ui/ModeView';
+import { useUiMode } from '@/theme/UiModeProvider';
+import { stanceLabel } from '@/lib/format';
 import { ScenarioFanChart } from '@/components/charts/ScenarioFanChart';
 import { MarketTicker } from '@/components/domain/MarketTicker';
 import { SectorHeatmap } from '@/components/domain/SectorHeatmap';
@@ -122,16 +125,23 @@ function FeaturedPick({ pick }: { pick: Recommendation }): JSX.Element {
           Scenario projection across horizons
         </div>
         {analysis.isLoading ? (
-          <Skeleton className="h-[220px] w-full" />
+          <Skeleton className="h-[13.75rem] w-full" />
         ) : (
           <ScenarioFanChart expectedReturns={expectedReturns} height={220} />
         )}
       </div>
 
+      <WhatThisMeans>
+        Our models rate <b>{pick.asset.symbol}</b> a <b>{stanceLabel(pick.recommendation)}</b>. Over the
+        next year they project about{' '}
+        <b>{formatPct(pick.expectedReturn1YPct, { sign: true, digits: 1 })}</b>, with{' '}
+        <b>{Math.round(pick.confidence * 100)}%</b> confidence — an estimate, never a promise.
+      </WhatThisMeans>
+
       <p className="text-xs leading-relaxed text-text">{pick.headline}</p>
 
       <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-3">
-        <span className="text-[11px] text-muted">Educational simulation — not financial advice.</span>
+        <span className="text-[0.6875rem] text-muted">Educational simulation — not financial advice.</span>
         <Link to={`/asset/${encodeURIComponent(pick.asset.symbol)}`}>
           <Button variant="outline" size="sm" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
             Full analysis
@@ -157,9 +167,9 @@ function Metric({
 }): JSX.Element {
   return (
     <div className="rounded-xl bg-surface-2 p-2.5">
-      <span className="block text-[10px] uppercase tracking-wide text-muted">{label}</span>
+      <span className="block text-[0.625rem] uppercase tracking-wide text-muted">{label}</span>
       <span className={cn('text-base font-semibold tnum text-text', valueColor)}>{value}</span>
-      {sub && <span className={cn('block text-[11px] font-medium tnum text-muted', subColor)}>{sub}</span>}
+      {sub && <span className={cn('block text-[0.6875rem] font-medium tnum text-muted', subColor)}>{sub}</span>}
     </div>
   );
 }
@@ -188,12 +198,12 @@ function MoverRow({ rec, up }: { rec: Recommendation; up: boolean }): JSX.Elemen
         </span>
         <div className="min-w-0">
           <span className="block text-xs font-semibold tracking-tight text-text">{rec.asset.symbol}</span>
-          <span className="block truncate text-[11px] text-muted">{rec.asset.name}</span>
+          <span className="block truncate text-[0.6875rem] text-muted">{rec.asset.name}</span>
         </div>
       </div>
       <div className="text-right">
         <span className="block text-xs tnum text-text">{formatPrice(price, rec.asset.currency)}</span>
-        <span className={cn('block text-[11px] font-medium tnum', changeTextColor(changePct))}>
+        <span className={cn('block text-[0.6875rem] font-medium tnum', changeTextColor(changePct))}>
           {formatPct(changePct, { digits: 2, sign: true })}
         </span>
       </div>
@@ -230,13 +240,13 @@ function PortfolioSnapshot(): JSX.Element {
         <>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <span className="block text-[10px] uppercase tracking-wide text-muted">Total value</span>
+              <span className="block text-[0.625rem] uppercase tracking-wide text-muted">Total value</span>
               <span className="text-xl font-semibold tnum text-text">
                 {formatCompactCurrency(data.totalValue, data.wallet.currency)}
               </span>
             </div>
             <div>
-              <span className="block text-[10px] uppercase tracking-wide text-muted">Total P&amp;L</span>
+              <span className="block text-[0.625rem] uppercase tracking-wide text-muted">Total P&amp;L</span>
               <span className={cn('text-xl font-semibold tnum', changeTextColor(data.totalPnl))}>
                 {formatPct(data.totalPnlPct, { digits: 2, sign: true })}
               </span>
@@ -271,6 +281,7 @@ function PortfolioSnapshot(): JSX.Element {
 /* ------------------------------------------------------------------ */
 
 export default function DashboardPage(): JSX.Element {
+  const { isEasy } = useUiMode();
   const assets = useAssets();
   const summary = useMarketSummary();
   const recs = useRecommendations(9);
@@ -296,16 +307,25 @@ export default function DashboardPage(): JSX.Element {
         <h1 className="text-lg font-semibold tracking-tight text-text lg:text-xl">
           Where to invest now
         </h1>
-        <p className="text-xs text-muted">
-          Composite leaders from {summary.data ? formatNumber(totalBreadth, 0) : '—'} tracked assets,
-          ranked by {recommendations.length} live quant models.
-        </p>
+        <EasyOnly>
+          <p className="text-sm text-muted">
+            Your top idea right now, in plain language — picked by our models from{' '}
+            {summary.data ? formatNumber(totalBreadth, 0) : '—'} markets we track.
+          </p>
+        </EasyOnly>
+        <ExpertOnly>
+          <p className="text-xs text-muted">
+            Composite leaders from {summary.data ? formatNumber(totalBreadth, 0) : '—'} tracked assets,
+            ranked by {recommendations.length} live quant models.
+          </p>
+        </ExpertOnly>
       </div>
 
       {/* Live ticker */}
       <MarketTicker assets={tickerAssets} />
 
-      {/* Breadth + indices stat row */}
+      {/* Breadth + indices stat row (detail view) */}
+      <ExpertOnly>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         {summary.isLoading ? (
           Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
@@ -338,28 +358,38 @@ export default function DashboardPage(): JSX.Element {
           </>
         )}
       </div>
+      </ExpertOnly>
 
-      {/* Featured pick + sector heatmap */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-4">
-        <div className="lg:col-span-2">
-          {recs.isLoading || !featured ? (
-            <SkeletonCard className="h-[460px]" />
-          ) : (
-            <FeaturedPick pick={featured} />
-          )}
+      {/* Featured pick (+ sector heatmap in Expert) */}
+      <ExpertOnly>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-4">
+          <div className="lg:col-span-2">
+            {recs.isLoading || !featured ? (
+              <SkeletonCard className="h-[28.75rem]" />
+            ) : (
+              <FeaturedPick pick={featured} />
+            )}
+          </div>
+          <Card className="flex flex-col gap-3 p-4">
+            <CardHeader>
+              <CardTitle icon={<Activity className="h-4 w-4" />}>Sector heatmap</CardTitle>
+              <CardDescription>Today&apos;s sector moves</CardDescription>
+            </CardHeader>
+            {summary.isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (
+              <SectorHeatmap sectors={summary.data?.sectors ?? []} />
+            )}
+          </Card>
         </div>
-        <Card className="flex flex-col gap-3 p-4">
-          <CardHeader>
-            <CardTitle icon={<Activity className="h-4 w-4" />}>Sector heatmap</CardTitle>
-            <CardDescription>Today&apos;s sector moves</CardDescription>
-          </CardHeader>
-          {summary.isLoading ? (
-            <Skeleton className="h-40 w-full" />
-          ) : (
-            <SectorHeatmap sectors={summary.data?.sectors ?? []} />
-          )}
-        </Card>
-      </div>
+      </ExpertOnly>
+      <EasyOnly>
+        {recs.isLoading || !featured ? (
+          <SkeletonCard className="h-[28.75rem]" />
+        ) : (
+          <FeaturedPick pick={featured} />
+        )}
+      </EasyOnly>
 
       {/* Top opportunities */}
       <div className="space-y-3">
@@ -381,35 +411,39 @@ export default function DashboardPage(): JSX.Element {
         </div>
       </div>
 
-      {/* Movers + portfolio snapshot */}
+      {/* Movers (Expert) + portfolio snapshot (both modes) */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 lg:gap-4">
-        <Card className="flex flex-col gap-2 p-4">
-          <CardTitle icon={<ArrowUpRight className="h-4 w-4 text-success" />}>Top gainers</CardTitle>
-          <div className="space-y-0.5">
-            {summary.isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
-            ) : topGainers.length > 0 ? (
-              topGainers.slice(0, 5).map((rec) => <MoverRow key={rec.asset.symbol} rec={rec} up />)
-            ) : (
-              <p className="px-2 py-3 text-xs text-muted">No gainers right now.</p>
-            )}
-          </div>
-        </Card>
+        <ExpertOnly>
+          <Card className="flex flex-col gap-2 p-4">
+            <CardTitle icon={<ArrowUpRight className="h-4 w-4 text-success" />}>Top gainers</CardTitle>
+            <div className="space-y-0.5">
+              {summary.isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
+              ) : topGainers.length > 0 ? (
+                topGainers.slice(0, 5).map((rec) => <MoverRow key={rec.asset.symbol} rec={rec} up />)
+              ) : (
+                <p className="px-2 py-3 text-xs text-muted">No gainers right now.</p>
+              )}
+            </div>
+          </Card>
 
-        <Card className="flex flex-col gap-2 p-4">
-          <CardTitle icon={<ArrowDownRight className="h-4 w-4 text-danger" />}>Top losers</CardTitle>
-          <div className="space-y-0.5">
-            {summary.isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
-            ) : topLosers.length > 0 ? (
-              topLosers.slice(0, 5).map((rec) => <MoverRow key={rec.asset.symbol} rec={rec} up={false} />)
-            ) : (
-              <p className="px-2 py-3 text-xs text-muted">No losers right now.</p>
-            )}
-          </div>
-        </Card>
+          <Card className="flex flex-col gap-2 p-4">
+            <CardTitle icon={<ArrowDownRight className="h-4 w-4 text-danger" />}>Top losers</CardTitle>
+            <div className="space-y-0.5">
+              {summary.isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
+              ) : topLosers.length > 0 ? (
+                topLosers.slice(0, 5).map((rec) => <MoverRow key={rec.asset.symbol} rec={rec} up={false} />)
+              ) : (
+                <p className="px-2 py-3 text-xs text-muted">No losers right now.</p>
+              )}
+            </div>
+          </Card>
+        </ExpertOnly>
 
-        <PortfolioSnapshot />
+        <div className={isEasy ? 'lg:col-span-3' : 'lg:col-span-1'}>
+          <PortfolioSnapshot />
+        </div>
       </div>
     </div>
   );

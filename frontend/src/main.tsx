@@ -12,6 +12,7 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from '@/theme/ThemeProvider';
+import { UiModeProvider } from '@/theme/UiModeProvider';
 import { AuthProvider } from '@/lib/auth';
 import App from '@/App';
 import '@/index.css';
@@ -33,11 +34,13 @@ ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </BrowserRouter>
+        <UiModeProvider>
+          <BrowserRouter>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </BrowserRouter>
+        </UiModeProvider>
       </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>,

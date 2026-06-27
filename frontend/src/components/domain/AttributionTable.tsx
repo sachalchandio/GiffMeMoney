@@ -22,7 +22,7 @@ export interface AttributionTableProps {
   className?: string;
 }
 
-const HEAD_CELL = 'px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted';
+const HEAD_CELL = 'px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted';
 const NUM_CELL = 'px-3 py-2 text-right tnum';
 
 function NumHead({ children }: { children: React.ReactNode }): JSX.Element {
@@ -65,7 +65,7 @@ export function AttributionTable({
 
   return (
     <div className={cn('overflow-x-auto', className)}>
-      <table className="w-full min-w-[560px] border-collapse text-sm">
+      <table className="w-full min-w-[35rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left">
             <th className={HEAD_CELL}>{keyLabel}</th>
@@ -83,7 +83,7 @@ export function AttributionTable({
             >
               <td className="px-3 py-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-[13px] font-medium text-text">{row.key}</span>
+                  <span className="text-[0.8125rem] font-medium text-text">{row.key}</span>
                   {verdictBadge(row.verdict)}
                 </div>
               </td>

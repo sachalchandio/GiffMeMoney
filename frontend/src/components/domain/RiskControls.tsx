@@ -159,7 +159,7 @@ export function RiskControls({ positionsCount, className }: RiskControlsProps): 
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-text">{rule.label}</span>
                 </div>
-                <p className="line-clamp-1 text-[11px] text-muted">{rule.help}</p>
+                <p className="line-clamp-1 text-[0.6875rem] text-muted">{rule.help}</p>
               </div>
               <div className="flex items-center gap-2.5">
                 <div className="relative w-24">
@@ -212,7 +212,7 @@ export function RiskControls({ positionsCount, className }: RiskControlsProps): 
             </p>
             <ul className="flex flex-col gap-1">
               {actions.map((a, i) => (
-                <li key={`${a.symbol}-${a.action}-${i}`} className="flex items-center justify-between gap-2 text-[11px]">
+                <li key={`${a.symbol}-${a.action}-${i}`} className="flex items-center justify-between gap-2 text-[0.6875rem]">
                   <span className="min-w-0 truncate text-text">
                     <span className="font-semibold">{a.symbol}</span>{' '}
                     <span className="text-muted">{ACTION_LABEL[a.action]}</span>
@@ -261,10 +261,10 @@ export function RiskControls({ positionsCount, className }: RiskControlsProps): 
       </div>
 
       {positionsCount === 0 && (
-        <p className="text-[11px] text-muted">Add a holding to apply protections.</p>
+        <p className="text-[0.6875rem] text-muted">Add a holding to apply protections.</p>
       )}
 
-      <p className="text-[11px] leading-snug text-muted">
+      <p className="text-[0.6875rem] leading-snug text-muted">
         {result?.disclaimer ??
           'Educational simulation on synthetic data. Risk controls are mechanical, after-the-fact exits — they do not guarantee a profit or prevent loss.'}
       </p>

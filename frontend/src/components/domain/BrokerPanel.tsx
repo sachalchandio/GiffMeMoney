@@ -103,13 +103,13 @@ function PositionRow({ pos }: { pos: BrokerPosition }): JSX.Element {
             </Badge>
           )}
         </div>
-        <span className="text-[11px] text-muted">
+        <span className="text-[0.6875rem] text-muted">
           {formatNumber(pos.qty, 4)} @ {formatPrice(pos.avgEntryPrice)} · now {formatPrice(pos.currentPrice)}
         </span>
       </div>
       <div className="shrink-0 text-right">
         <div className="text-sm font-medium tnum text-text">{formatCurrency(pos.marketValue)}</div>
-        <div className={cn('text-[11px] tnum', changeTextColor(pos.unrealizedPnl))}>
+        <div className={cn('text-[0.6875rem] tnum', changeTextColor(pos.unrealizedPnl))}>
           {pos.unrealizedPnl >= 0 ? '+' : '−'}
           {formatCurrency(Math.abs(pos.unrealizedPnl))} ({formatPct(pos.unrealizedPnlPct, { sign: true, digits: 1 })})
         </div>
@@ -143,12 +143,12 @@ function OrderRow({ order }: { order: BrokerOrder }): JSX.Element {
             {orderStatusLabel(order.status)}
           </Badge>
         </div>
-        <span className="text-[11px] text-muted">
+        <span className="text-[0.6875rem] text-muted">
           {sizing}
           {order.filledQty > 0 && ` · filled ${formatNumber(order.filledQty, 4)} @ ${formatPrice(order.filledAvgPrice)}`}
         </span>
       </div>
-      <span className="shrink-0 text-[11px] text-muted">{formatDateTime(order.createdAt)}</span>
+      <span className="shrink-0 text-[0.6875rem] text-muted">{formatDateTime(order.createdAt)}</span>
     </li>
   );
 }
@@ -170,7 +170,7 @@ function Section({
       <CardHeader>
         <CardTitle icon={icon}>{title}</CardTitle>
         {typeof count === 'number' && count > 0 && (
-          <span className="text-[11px] text-muted">{count}</span>
+          <span className="text-[0.6875rem] text-muted">{count}</span>
         )}
       </CardHeader>
       {children}
@@ -230,7 +230,7 @@ export function BrokerPanel({ className }: BrokerPanelProps): JSX.Element {
               : 'Paper / simulated broker — no real money moves'}
           </p>
           <p className="text-xs leading-relaxed text-muted">{BROKER_DISCLAIMER}</p>
-          <p className="text-[11px] leading-relaxed text-muted">
+          <p className="text-[0.6875rem] leading-relaxed text-muted">
             This view is display-only. Real trading is never enabled from the UI — it stays a deliberate,
             documented env/config action (see docs/DEPLOY.md).
           </p>
@@ -263,7 +263,7 @@ export function BrokerPanel({ className }: BrokerPanelProps): JSX.Element {
               Live gate: {status.liveEnabled ? 'OPEN' : 'closed'}
             </Badge>
           </div>
-          {status.message && <p className="text-[11px] leading-snug text-muted">{status.message}</p>}
+          {status.message && <p className="text-[0.6875rem] leading-snug text-muted">{status.message}</p>}
         </Card>
       ) : null}
 
@@ -327,7 +327,7 @@ export function BrokerPanel({ className }: BrokerPanelProps): JSX.Element {
                   No open positions.
                 </div>
               ) : (
-                <ul className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-0.5">
+                <ul className="flex max-h-[20rem] flex-col gap-2 overflow-y-auto pr-0.5">
                   {positions.map((pos) => (
                     <PositionRow key={pos.symbol} pos={pos} />
                   ))}
@@ -354,7 +354,7 @@ export function BrokerPanel({ className }: BrokerPanelProps): JSX.Element {
                   No orders recorded yet.
                 </div>
               ) : (
-                <ul className="flex max-h-[320px] flex-col gap-2 overflow-y-auto pr-0.5">
+                <ul className="flex max-h-[20rem] flex-col gap-2 overflow-y-auto pr-0.5">
                   {orders.map((order) => (
                     <OrderRow key={order.id} order={order} />
                   ))}

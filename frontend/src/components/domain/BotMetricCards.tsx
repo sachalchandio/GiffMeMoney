@@ -97,7 +97,7 @@ function MetricTile({ tile }: { tile: Tile }): JSX.Element {
   return (
     <Tooltip content={tile.hint as ReactNode}>
       <div className="flex w-full flex-col gap-0.5 rounded-xl border border-border bg-surface-2 px-3 py-2.5 text-left">
-        <span className="text-[11px] font-medium text-muted">{tile.label}</span>
+        <span className="text-[0.6875rem] font-medium text-muted">{tile.label}</span>
         <span className={cn('text-lg font-semibold tracking-tight tnum', TONE_VALUE[tile.tone])}>
           {tile.value}
         </span>

@@ -125,10 +125,10 @@ export function MarketAnalysisPanel({
       {regimeTimeline.length > 0 && (
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
+            <span className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
               Regime over time
             </span>
-            <span className="text-[10px] text-muted">{regimeTimeline.length} rebalances</span>
+            <span className="text-[0.625rem] text-muted">{regimeTimeline.length} rebalances</span>
           </div>
           <div className="flex flex-wrap gap-1">
             {regimeTimeline.map((r, i) => (
@@ -145,7 +145,7 @@ export function MarketAnalysisPanel({
 
       {/* Top signals the bot acted on. */}
       <div>
-        <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-muted">
+        <span className="mb-1.5 block text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
           Top signals acted on
         </span>
         {signals.length === 0 ? (
@@ -154,14 +154,14 @@ export function MarketAnalysisPanel({
           <ul className="flex flex-col divide-y divide-border">
             {signals.map((s) => (
               <li key={`${s.symbol}-${s.strategy}`} className="flex items-center gap-2 py-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-[10px] font-semibold text-primary">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-[0.625rem] font-semibold text-primary">
                   {s.symbol.slice(0, 3)}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium text-text">{s.symbol}</span>
                   </div>
-                  <p className="line-clamp-1 text-[11px] text-muted">{s.strategy}</p>
+                  <p className="line-clamp-1 text-[0.6875rem] text-muted">{s.strategy}</p>
                 </div>
                 <span className="shrink-0 text-xs font-medium tnum text-text">
                   {formatCurrency(s.amount)}

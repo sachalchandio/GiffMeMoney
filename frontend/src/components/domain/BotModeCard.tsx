@@ -66,7 +66,7 @@ function rotationLabel(rotation: BotRotation): string {
 function Chip({ icon, children, hint }: { icon: React.ReactNode; children: React.ReactNode; hint: string }): JSX.Element {
   return (
     <Tooltip content={hint}>
-      <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-muted">
+      <span className="inline-flex items-center gap-1 rounded-md bg-surface-2 px-1.5 py-0.5 text-[0.625rem] font-medium text-muted">
         <span className="text-muted">{icon}</span>
         {children}
       </span>
@@ -142,7 +142,7 @@ export function BotModeCard({
       </div>
 
       {/* Honesty note — momentum, not martingale; pinned to the bottom. */}
-      <p className="mt-auto pt-1 text-[10px] leading-snug text-muted">
+      <p className="mt-auto pt-1 text-[0.625rem] leading-snug text-muted">
         Adds to recent winners, trims losers — never doubles down to chase losses.
       </p>
     </Card>

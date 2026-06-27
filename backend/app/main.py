@@ -36,6 +36,7 @@ from app.api import (
     auth as auth_api,
     bot as bot_api,
     broker as broker_api,
+    hft as hft_api,
     invest as invest_api,
     market as market_api,
     portfolio as portfolio_api,
@@ -94,6 +95,7 @@ OPENAPI_TAGS: List[Dict[str, str]] = [
     {"name": "wallet", "description": "Cash, cards and the account ledger (simulated funding)."},
     {"name": "advisor", "description": "Risk-profiled allocation advice for a dollar amount."},
     {"name": "bot", "description": "Simulated paper-trading auto-trader: preset modes, backtests and side-by-side comparison (synthetic data, no real funds)."},
+    {"name": "hft", "description": "High-Frequency Simulation Lab (paper-only): short-horizon strategies with a realistic cost model, plus a turnover sweep that finds the true net-of-cost optimum. Honest by design — it shows trading faster usually loses to costs, and is explicit that a web app cannot trade in microseconds."},
     {"name": "broker", "description": "Pluggable broker execution layer (go-live, opt-in). Ships in simulated paper mode with live trading hard-gated OFF; every payload carries a paper flag + disclaimer."},
     {"name": "auth", "description": "Email/password signup, login and the current-user probe."},
 ]
@@ -274,6 +276,7 @@ def create_app() -> FastAPI:
         portfolio_api.router,
         invest_api.router,
         bot_api.router,
+        hft_api.router,
         broker_api.router,
         auth_api.router,
     ):
