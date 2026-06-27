@@ -229,7 +229,7 @@ export function AllocationBuilder({
         <>
           <SyntheticDataBanner synthetic={lastAdvice.syntheticData} targetWarning={lastAdvice.targetWarning} />
           {(lastAdvice.cashWeight ?? 0) > 0.0005 && (
-            <p className="text-[11px] text-muted">
+            <p className="text-[0.6875rem] text-muted">
               Advisor parked{' '}
               <span className="font-medium text-text">{formatPct((lastAdvice.cashWeight ?? 0) * 100, { digits: 0 })}</span>{' '}
               ({formatCurrency(lastAdvice.cashAmount ?? 0)}) as uninvested cash — the suggested rows below total the risky
@@ -287,7 +287,7 @@ export function AllocationBuilder({
                       </Badge>
                     )}
                   </div>
-                  {asset && <span className="line-clamp-1 text-[11px] text-muted">{asset.name}</span>}
+                  {asset && <span className="line-clamp-1 text-[0.6875rem] text-muted">{asset.name}</span>}
                 </div>
 
                 <span className="w-12 shrink-0 text-right text-xs tnum text-muted">{formatPct(weight * 100, { digits: 0 })}</span>

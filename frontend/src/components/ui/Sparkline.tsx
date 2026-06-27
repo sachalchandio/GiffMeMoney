@@ -76,7 +76,7 @@ export function Sparkline({
   if (points.length === 0) {
     return (
       <div
-        className={cn('flex items-center justify-center text-[10px] text-muted', className)}
+        className={cn('flex items-center justify-center text-[0.625rem] text-muted', className)}
         style={{ width, height }}
         aria-label={ariaLabel ?? 'No data'}
       >

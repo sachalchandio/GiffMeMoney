@@ -126,7 +126,7 @@ function ModeTile({
           {mode.riskLevel} risk
         </Badge>
       </div>
-      <p className="line-clamp-3 text-[11px] leading-relaxed text-muted">{mode.summary}</p>
+      <p className="line-clamp-3 text-[0.6875rem] leading-relaxed text-muted">{mode.summary}</p>
       <div className="mt-auto flex flex-wrap items-center gap-1 pt-1">
         <Badge tone="neutral" variant="outline" size="sm">
           {mode.objective.replace(/_/g, ' ')}
@@ -176,7 +176,7 @@ function RiskSlider({
         className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-surface-2 accent-primary"
         aria-label={label}
       />
-      <p className="text-[11px] leading-snug text-muted">{hint}</p>
+      <p className="text-[0.6875rem] leading-snug text-muted">{hint}</p>
     </div>
   );
 }
@@ -280,7 +280,7 @@ function AttributionRow({ row }: { row: SleeveAttribution }): JSX.Element {
             </Badge>
           )}
         </div>
-        <span className="text-[11px] text-muted">
+        <span className="text-[0.6875rem] text-muted">
           {row.trades} trades · {formatPct(row.winRate * 100, { digits: 0 })} win rate
         </span>
       </div>
@@ -343,7 +343,7 @@ function RunResultPanel({ result }: { result: BotRunResult }): JSX.Element {
           <CardHeader>
             <CardTitle icon={<Layers className="h-4 w-4" />}>Sleeve attribution</CardTitle>
             {result.attribution.length > 0 && (
-              <span className="text-[11px] text-muted">{result.attribution.length}</span>
+              <span className="text-[0.6875rem] text-muted">{result.attribution.length}</span>
             )}
           </CardHeader>
           {result.attribution.length === 0 ? (
@@ -351,13 +351,13 @@ function RunResultPanel({ result }: { result: BotRunResult }): JSX.Element {
               No sleeve attribution for this run.
             </div>
           ) : (
-            <ul className="flex max-h-[360px] flex-col gap-2 overflow-y-auto pr-0.5">
+            <ul className="flex max-h-[22.5rem] flex-col gap-2 overflow-y-auto pr-0.5">
               {result.attribution.map((row) => (
                 <AttributionRow key={row.key} row={row} />
               ))}
             </ul>
           )}
-          <p className="text-[11px] leading-snug text-muted">
+          <p className="text-[0.6875rem] leading-snug text-muted">
             Rotation tilts toward recent winners (momentum / bandit) and away from losers — never increasing a
             losing sleeve to chase losses.
           </p>
@@ -382,11 +382,11 @@ function RunResultPanel({ result }: { result: BotRunResult }): JSX.Element {
           )}
           <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
             <div className="rounded-lg bg-surface-2/60 px-3 py-2">
-              <span className="block text-[11px] text-muted">Best sleeve</span>
+              <span className="block text-[0.6875rem] text-muted">Best sleeve</span>
               <span className="font-semibold text-success">{result.bestStrategy ?? '—'}</span>
             </div>
             <div className="rounded-lg bg-surface-2/60 px-3 py-2">
-              <span className="block text-[11px] text-muted">Worst sleeve</span>
+              <span className="block text-[0.6875rem] text-muted">Worst sleeve</span>
               <span className="font-semibold text-danger">{result.worstStrategy ?? '—'}</span>
             </div>
           </div>
@@ -438,7 +438,7 @@ function ResultSkeleton(): JSX.Element {
           <Skeleton key={i} className="h-24 w-full" />
         ))}
       </div>
-      <Skeleton className="h-[300px] w-full" />
+      <Skeleton className="h-[18.75rem] w-full" />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Skeleton className="h-64 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -601,7 +601,7 @@ export default function AutoTraderPage(): JSX.Element {
                   );
                 })}
               </div>
-              <p className="text-[11px] text-muted">
+              <p className="text-[0.6875rem] text-muted">
                 {classes.length === 0 ? 'All classes (no filter).' : `${classes.length} selected.`}
               </p>
             </div>
@@ -708,7 +708,7 @@ export default function AutoTraderPage(): JSX.Element {
       {/* Footer disclaimer */}
       <div className="flex items-start gap-2 rounded-xl border border-border bg-surface-2/40 px-3 py-2">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
-        <p className="text-[11px] leading-relaxed text-muted">{BOT_DISCLAIMER}</p>
+        <p className="text-[0.6875rem] leading-relaxed text-muted">{BOT_DISCLAIMER}</p>
       </div>
     </div>
   );

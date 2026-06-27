@@ -120,7 +120,7 @@ export function ScoreGauge({
           <span className="text-xs font-medium" style={{ color }}>
             {stanceLabel(derived)}
           </span>
-          {caption && <span className="mt-0.5 text-[10px] text-muted">{caption}</span>}
+          {caption && <span className="mt-0.5 text-[0.625rem] text-muted">{caption}</span>}
         </div>
       )}
     </div>

@@ -61,13 +61,13 @@ export function SectorHeatmap({ sectors, className }: SectorHeatmapProps): JSX.E
           <div
             key={s.sector}
             style={tileStyle(s.changePct, maxAbs)}
-            className="flex min-h-[72px] flex-col justify-between rounded-xl border border-border/60 p-2.5"
+            className="flex min-h-[4.5rem] flex-col justify-between rounded-xl border border-border/60 p-2.5"
           >
             <div className="flex items-start justify-between gap-1">
               <span className="truncate text-xs font-semibold tracking-tight text-text" title={s.sector}>
                 {s.sector}
               </span>
-              <span className="shrink-0 rounded-full bg-surface/70 px-1.5 text-[10px] font-medium tnum text-muted">
+              <span className="shrink-0 rounded-full bg-surface/70 px-1.5 text-[0.625rem] font-medium tnum text-muted">
                 {s.count}
               </span>
             </div>

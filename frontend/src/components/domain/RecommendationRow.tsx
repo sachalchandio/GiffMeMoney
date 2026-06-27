@@ -80,7 +80,7 @@ export function RecommendationRow({
 
         {/* 1Y expected return */}
         <div className="flex w-16 flex-col items-end sm:w-20">
-          <span className="text-[10px] uppercase tracking-wide text-muted">1Y</span>
+          <span className="text-[0.625rem] uppercase tracking-wide text-muted">1Y</span>
           <span className={cn('text-sm font-semibold tnum', changeTextColor(rec.expectedReturn1YPct))}>
             {formatPct(rec.expectedReturn1YPct, { sign: true, digits: 1 })}
           </span>
@@ -119,7 +119,7 @@ export function RecommendationRow({
             </ul>
 
             <div className="flex flex-col items-stretch gap-2 sm:w-44">
-              <span className="text-[10px] uppercase tracking-wide text-muted">30-day price</span>
+              <span className="text-[0.625rem] uppercase tracking-wide text-muted">30-day price</span>
               {candles.isPending ? (
                 <Skeleton className="h-9 w-full" />
               ) : (

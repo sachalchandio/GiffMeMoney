@@ -135,10 +135,10 @@ export function AdvicePanel({ amount, advice: external, onApply, className }: Ad
                   <div className="flex items-center gap-2.5 rounded-xl border border-border bg-surface-2/40 px-3 py-2">
                     <PiggyBank className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                     <div className="min-w-0">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Cash sleeve</p>
+                      <p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted">Cash sleeve</p>
                       <p className="text-sm font-semibold tnum text-text">
                         {formatFractionPct(cashWeight, { digits: 0 })}
-                        <span className="ml-1 text-[11px] font-normal text-muted">· {formatCurrency(cashAmount)} held</span>
+                        <span className="ml-1 text-[0.6875rem] font-normal text-muted">· {formatCurrency(cashAmount)} held</span>
                       </p>
                     </div>
                   </div>
@@ -147,7 +147,7 @@ export function AdvicePanel({ amount, advice: external, onApply, className }: Ad
                   <div className="flex items-center gap-2.5 rounded-xl border border-danger/25 bg-danger/5 px-3 py-2">
                     <ShieldAlert className="h-4 w-4 shrink-0 text-danger" aria-hidden />
                     <div className="min-w-0">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
+                      <p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted">
                         Downside{down ? ` · ${down.horizon}` : ''}
                       </p>
                       <p className="flex flex-wrap items-baseline gap-x-2 text-sm font-semibold tnum text-text">
@@ -158,7 +158,7 @@ export function AdvicePanel({ amount, advice: external, onApply, className }: Ad
                           </span>
                         )}
                         {cvar != null && (
-                          <span className="text-[11px] font-normal text-muted">
+                          <span className="text-[0.6875rem] font-normal text-muted">
                             CVaR −{formatPct(Math.abs(cvar), { digits: 1 })}
                           </span>
                         )}
@@ -187,11 +187,11 @@ export function AdvicePanel({ amount, advice: external, onApply, className }: Ad
                         {formatPct(item.weight * 100, { digits: 0 })}
                       </Badge>
                     </div>
-                    <p className="line-clamp-1 text-[11px] text-muted">{item.rationale}</p>
+                    <p className="line-clamp-1 text-[0.6875rem] text-muted">{item.rationale}</p>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-sm font-medium tnum text-text">{formatCurrency(item.amount)}</p>
-                    <p className={cn('inline-flex items-center justify-end gap-0.5 text-[11px] tnum', changeTextColor(item.expectedReturn1YPct))}>
+                    <p className={cn('inline-flex items-center justify-end gap-0.5 text-[0.6875rem] tnum', changeTextColor(item.expectedReturn1YPct))}>
                       <TrendingUp className="h-3 w-3" aria-hidden />
                       {formatPct(item.expectedReturn1YPct, { sign: true, digits: 1 })} 1Y
                     </p>
@@ -203,7 +203,7 @@ export function AdvicePanel({ amount, advice: external, onApply, className }: Ad
 
           {/* Whole-basket horizon fan */}
           <div>
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted">Basket outlook · 5 horizons</p>
+            <p className="mb-1 text-[0.6875rem] font-medium uppercase tracking-wide text-muted">Basket outlook · 5 horizons</p>
             <ScenarioFanChart expectedReturns={advice.horizons} height={200} />
           </div>
 
@@ -221,7 +221,7 @@ export function AdvicePanel({ amount, advice: external, onApply, className }: Ad
 function Headline({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
   return (
     <div className="rounded-xl border border-border bg-surface-2/50 px-2.5 py-2 text-center">
-      <p className="text-[10px] font-medium uppercase tracking-wide text-muted">{label}</p>
+      <p className="text-[0.625rem] font-medium uppercase tracking-wide text-muted">{label}</p>
       <p className={cn('mt-0.5 text-sm font-semibold tnum text-text', tone)}>{value}</p>
     </div>
   );

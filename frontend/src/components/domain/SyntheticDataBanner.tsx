@@ -50,7 +50,7 @@ export function SyntheticDataBanner({
       {synthetic && (
         <div className="flex items-start gap-2 rounded-xl border border-border bg-surface-2/50 px-3 py-2">
           <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-hidden />
-          <p className="text-[11px] leading-snug text-muted">
+          <p className="text-[0.6875rem] leading-snug text-muted">
             Computed on <span className="font-medium text-text">synthetic data</span> — an educational
             simulation, not a real forecast and no guarantee of profit.
           </p>

@@ -322,7 +322,7 @@ export default function ScreenerPage(): JSX.Element {
                               {assetClassLabel(row.asset.assetClass)}
                             </Badge>
                           </div>
-                          <span className="block max-w-[180px] truncate text-xs text-muted" title={row.asset.name}>
+                          <span className="block max-w-[11.25rem] truncate text-xs text-muted" title={row.asset.name}>
                             {row.asset.name}
                           </span>
                         </div>
@@ -331,7 +331,7 @@ export default function ScreenerPage(): JSX.Element {
                     <td className="px-3 py-2.5 text-right">
                       <span className="text-sm tnum text-text">{formatPrice(row.price, row.asset.currency)}</span>
                       {row.asset.marketCap != null && (
-                        <span className="block text-[10px] tnum text-muted">
+                        <span className="block text-[0.625rem] tnum text-muted">
                           {formatCompactCurrency(row.asset.marketCap, row.asset.currency)} cap
                         </span>
                       )}
@@ -435,7 +435,7 @@ export default function ScreenerPage(): JSX.Element {
         )}
       </div>
 
-      <p className="text-[11px] text-muted">
+      <p className="text-[0.6875rem] text-muted">
         Composite, Sharpe, vol and 1-year projection load per asset from the quant engine and update as
         they resolve. Educational simulation — not financial advice.
       </p>
@@ -490,7 +490,7 @@ function MetricCell({
 function MobileStat({ label, children }: { label: string; children: React.ReactNode }): JSX.Element {
   return (
     <div className="rounded-lg bg-surface-2 p-1.5 text-center">
-      <span className="block text-[9px] uppercase tracking-wide text-muted">{label}</span>
+      <span className="block text-[0.5625rem] uppercase tracking-wide text-muted">{label}</span>
       <span className="block text-xs tnum text-text">{children}</span>
     </div>
   );

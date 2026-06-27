@@ -53,7 +53,7 @@ function ScoreMeter({ score }: { score: number }): JSX.Element {
 function BacktestRow({ label, value }: { label: string; value: string }): JSX.Element {
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] text-muted">{label}</span>
+      <span className="text-[0.625rem] text-muted">{label}</span>
       <span className="text-xs font-semibold tnum text-text">{value}</span>
     </div>
   );
@@ -78,7 +78,7 @@ export function SignalCard({ signal, className }: SignalCardProps): JSX.Element 
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <span id={scoreId} className="text-[11px] font-medium text-muted">
+        <span id={scoreId} className="text-[0.6875rem] font-medium text-muted">
           Score
         </span>
         <div className="flex items-center gap-2">
@@ -86,12 +86,12 @@ export function SignalCard({ signal, className }: SignalCardProps): JSX.Element 
             {signal.score > 0 ? '+' : ''}
             {Math.round(signal.score)}
           </span>
-          <span className="text-[11px] tnum text-muted">{formatProbability(signal.confidence)} conf.</span>
+          <span className="text-[0.6875rem] tnum text-muted">{formatProbability(signal.confidence)} conf.</span>
         </div>
       </div>
       <ScoreMeter score={signal.score} />
 
-      <code className="block overflow-x-auto rounded-lg bg-surface px-2 py-1.5 text-[11px] leading-snug text-muted no-scrollbar">
+      <code className="block overflow-x-auto rounded-lg bg-surface px-2 py-1.5 text-[0.6875rem] leading-snug text-muted no-scrollbar">
         {signal.formula}
       </code>
 

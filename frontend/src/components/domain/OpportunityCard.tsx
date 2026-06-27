@@ -57,7 +57,7 @@ export function OpportunityCard({
               <span className="truncate text-sm font-semibold tracking-tight text-text">
                 {asset.symbol}
               </span>
-              <span className="rounded-full bg-surface-2 px-1.5 text-[10px] font-medium text-muted">
+              <span className="rounded-full bg-surface-2 px-1.5 text-[0.625rem] font-medium text-muted">
                 {assetClassLabel(asset.assetClass)}
               </span>
             </div>
@@ -71,22 +71,22 @@ export function OpportunityCard({
 
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <span className="block text-[10px] uppercase tracking-wide text-muted">Score</span>
+          <span className="block text-[0.625rem] uppercase tracking-wide text-muted">Score</span>
           <span className="text-sm font-semibold tnum text-text">
             {compositeScore > 0 ? '+' : ''}
             {Math.round(compositeScore)}
           </span>
         </div>
         <div>
-          <span className="block text-[10px] uppercase tracking-wide text-muted">1Y Proj.</span>
+          <span className="block text-[0.625rem] uppercase tracking-wide text-muted">1Y Proj.</span>
           <span className={cn('text-sm font-semibold tnum', changeTextColor(expectedReturn1YPct))}>
             {formatPct(expectedReturn1YPct, { digits: 1, sign: true })}
           </span>
         </div>
         <div>
-          <span className="block text-[10px] uppercase tracking-wide text-muted">Price</span>
+          <span className="block text-[0.625rem] uppercase tracking-wide text-muted">Price</span>
           <span className="text-sm font-semibold tnum text-text">{formatPrice(price, asset.currency)}</span>
-          <span className={cn('block text-[10px] font-medium tnum', changeTextColor(changePct))}>
+          <span className={cn('block text-[0.625rem] font-medium tnum', changeTextColor(changePct))}>
             {formatPct(changePct, { digits: 2, sign: true })}
           </span>
         </div>
@@ -97,7 +97,7 @@ export function OpportunityCard({
       {reasons.length > 0 && (
         <ul className="mt-auto space-y-1">
           {reasons.slice(0, reasonCount).map((reason, i) => (
-            <li key={i} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted">
+            <li key={i} className="flex items-start gap-1.5 text-[0.6875rem] leading-relaxed text-muted">
               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-primary" aria-hidden />
               <span className="line-clamp-2">{reason}</span>
             </li>

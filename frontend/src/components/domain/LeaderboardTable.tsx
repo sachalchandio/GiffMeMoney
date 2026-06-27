@@ -30,7 +30,7 @@ export interface LeaderboardTableProps {
   className?: string;
 }
 
-const HEAD_CELL = 'px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted';
+const HEAD_CELL = 'px-3 py-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-muted';
 const NUM_CELL = 'px-3 py-2 text-right tnum';
 
 /** Right-aligned numeric header. */
@@ -48,7 +48,7 @@ export function LeaderboardTable({
 
   return (
     <div className={cn('overflow-x-auto', className)}>
-      <table className="w-full min-w-[640px] border-collapse text-sm">
+      <table className="w-full min-w-[40rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left">
             <th className={cn(HEAD_CELL, 'w-10')}>#</th>
@@ -94,7 +94,7 @@ function BenchmarkRow({ benchmark }: { benchmark: BacktestMetricsDTO }): JSX.Ele
       <td className="px-3 py-2 text-center text-muted">—</td>
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-medium text-text">Buy &amp; Hold</span>
+          <span className="text-[0.8125rem] font-medium text-text">Buy &amp; Hold</span>
           <Badge tone="neutral" size="sm" variant="outline">
             Benchmark
           </Badge>
@@ -143,7 +143,7 @@ function LeaderRow({
       <td className="px-3 py-2">
         <span
           className={cn(
-            'inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[11px] font-semibold tnum',
+            'inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1 text-[0.6875rem] font-semibold tnum',
             isPodium ? 'bg-primary/12 text-primary' : 'text-muted',
           )}
         >
@@ -152,7 +152,7 @@ function LeaderRow({
       </td>
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-[13px] font-medium text-text">{entry.strategyName}</span>
+          <span className="text-[0.8125rem] font-medium text-text">{entry.strategyName}</span>
           <Badge tone={categoryTone(entry.category)} size="sm" variant="soft">
             {entry.category}
           </Badge>

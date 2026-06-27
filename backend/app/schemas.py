@@ -1618,6 +1618,162 @@ class AuthResponse(CamelModel):
     user: UserDTO
 
 
+# ---------------------------------------------------------------------------
+# High-Frequency Simulation Lab DTOs (paper-only short-horizon experiment)
+# ---------------------------------------------------------------------------
+#
+# SAFETY / HONESTY: every payload here is a SIMULATION on synthetic data. The lab
+# exists to show — truthfully — that trading faster / in smaller portions usually
+# makes LESS money once spreads and fees are charged, not more. It is explicit
+# that a web app cannot trade in microseconds (broker round-trips are ~100ms, a
+# million times slower than real HFT), so it simulates *bars*, never microseconds.
+
+#: Mandatory disclaimer attached to every HFT-lab payload.
+HFT_DISCLAIMER: str = (
+    "Educational SIMULATION on synthetic data — not financial advice and not a "
+    "real trading system. This is NOT microsecond/high-frequency trading: a web "
+    "app's broker round-trip is ~100ms (a million times slower than co-located "
+    "HFT), so the lab simulates bars, not microseconds. There is no real edge in "
+    "synthetic data; results show only how transaction costs make turnover bleed. "
+    "No real funds are traded."
+)
+
+#: A short-horizon signal id understood by the lab.
+HftSignal = Literal["meanrev", "momentum", "buyhold"]
+
+
+class HftCostModel(CamelModel):
+    """A transaction-cost preset (spread + fee + slippage)."""
+
+    key: str
+    name: str
+    half_spread_bps: float
+    fee_bps: float
+    impact_coef: float
+    round_trip_bps: float
+    note: str
+
+
+class HftSimRequest(CamelModel):
+    """Request body for a single HFT-lab simulation.
+
+    Fields mirror :class:`app.hft.execution.SimSpec`; all have safe defaults so a
+    bare ``{}`` runs a sensible demo (mean-reversion on a $20 book, retail-crypto
+    costs, re-deciding every bar).
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "symbol": "BTC",
+                    "amount": 20,
+                    "days": 30,
+                    "barsPerDay": 78,
+                    "signal": "meanrev",
+                    "rebalanceInterval": 1,
+                    "costPreset": "retail-crypto",
+                }
+            ]
+        }
+    )
+
+    symbol: str = "SYNTH"
+    amount: float = 20.0
+    days: int = 30
+    bars_per_day: int = 78
+    signal: HftSignal = "meanrev"
+    lookback: int = 20
+    rebalance_interval: int = 1
+    deadband: float = 0.05
+    target_vol: float = 0.25
+    max_exposure: float = 1.0
+    allow_short: bool = False
+    stop_loss_pct: float = 3.0
+    take_profit_pct: float = 0.0
+    max_drawdown_pct: float = 15.0
+    cooldown_bars: int = 5
+    cost_preset: str = "retail-crypto"
+
+
+class HftSimMetrics(CamelModel):
+    """Realized metrics for one simulation (gross vs net vs buy-&-hold)."""
+
+    gross_return_pct: float
+    net_return_pct: float
+    cost_drag_pct: float
+    buy_hold_return_pct: float
+    vs_buy_hold_pct: float
+    turnover: float
+    turnover_per_day: float
+    trades: int
+    time_in_market_pct: float
+    sharpe_net: float
+    sharpe_gross: float
+    max_drawdown_pct: float
+    hit_rate_pct: float
+    final_net_value: float
+
+
+class HftSimResult(CamelModel):
+    """The full result of one simulation, with aligned equity curves."""
+
+    metrics: HftSimMetrics
+    net_curve: list[float] = Field(default_factory=list)
+    gross_curve: list[float] = Field(default_factory=list)
+    buy_hold_curve: list[float] = Field(default_factory=list)
+    exposure_curve: list[float] = Field(default_factory=list)
+    bars: int = 0
+    bars_per_year: int = 0
+    cost_model: Optional[HftCostModel] = None
+    synthetic_data: bool = True
+    disclaimer: str = HFT_DISCLAIMER
+
+
+class HftSweepPoint(CamelModel):
+    """One setting on the turnover curve."""
+
+    interval: int
+    label: str
+    turnover: float
+    turnover_per_day: float
+    trades: int
+    gross_return_pct: float
+    net_return_pct: float
+    cost_drag_pct: float
+    sharpe_net: float
+    max_drawdown_pct: float
+    vs_buy_hold_pct: float
+
+
+class HftSweepRequest(CamelModel):
+    """Request body for a turnover sweep (same base spec as :class:`HftSimRequest`)."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"symbol": "BTC", "amount": 20, "signal": "meanrev", "costPreset": "retail-crypto"}
+            ]
+        }
+    )
+
+    base: HftSimRequest = Field(default_factory=HftSimRequest)
+    intervals: Optional[list[int]] = None
+
+
+class HftSweepResult(CamelModel):
+    """The full turnover-sweep result with reference points and a verdict."""
+
+    points: list[HftSweepPoint] = Field(default_factory=list)
+    optimum_by_net_return: Optional[HftSweepPoint] = None
+    optimum_by_net_sharpe: Optional[HftSweepPoint] = None
+    naive_fast: Optional[HftSweepPoint] = None
+    buy_hold_return_pct: float = 0.0
+    verdict: str = ""
+    synthetic_data: bool = True
+    disclaimer: str = HFT_DISCLAIMER
+
+
 __all__ = [
     # type aliases
     "AssetClass",
@@ -1720,4 +1876,14 @@ __all__ = [
     "SignupRequest",
     "LoginRequest",
     "AuthResponse",
+    # HFT simulation lab
+    "HFT_DISCLAIMER",
+    "HftSignal",
+    "HftCostModel",
+    "HftSimRequest",
+    "HftSimMetrics",
+    "HftSimResult",
+    "HftSweepPoint",
+    "HftSweepRequest",
+    "HftSweepResult",
 ]

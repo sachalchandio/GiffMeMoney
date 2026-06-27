@@ -14,6 +14,7 @@ import {
   Wallet,
   Bot,
   Table2,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -35,6 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/portfolio', label: 'Portfolio', icon: PieChart },
   { to: '/invest', label: 'Invest', icon: Wallet },
   { to: '/auto-trader', label: 'Auto-Trader', icon: Bot },
+  { to: '/speed-lab', label: 'Speed Lab', icon: Zap },
   { to: '/screener', label: 'Screener', icon: Table2 },
 ];
 
@@ -78,7 +80,7 @@ export function Sidebar({
           >
             $
           </span>
-          {showLabels && <span className="text-[15px]">GiffMeMoney</span>}
+          {showLabels && <span className="text-[0.9375rem]">GiffMeMoney</span>}
         </NavLink>
         {!drawer && showLabels && onToggleCollapsed && (
           <Button
@@ -113,7 +115,7 @@ export function Sidebar({
               )
             }
           >
-            <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden />
+            <Icon className="h-[1.125rem] w-[1.125rem] shrink-0" aria-hidden />
             {showLabels && <span className="truncate">{label}</span>}
           </NavLink>
         ))}
@@ -137,7 +139,7 @@ export function Sidebar({
       {/* Footer disclaimer */}
       {showLabels && (
         <div className="border-t border-border p-3">
-          <p className="text-[10px] leading-relaxed text-muted">
+          <p className="text-[0.625rem] leading-relaxed text-muted">
             Educational simulation. Not financial advice.
           </p>
         </div>

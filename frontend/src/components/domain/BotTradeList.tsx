@@ -47,7 +47,7 @@ export function BotTradeList({
         <CardHeader>
           <CardTitle icon={<ListOrdered className="h-4 w-4" />}>Simulated trades</CardTitle>
           {trades.length > 0 && (
-            <span className="text-[11px] text-muted">{trades.length} total</span>
+            <span className="text-[0.6875rem] text-muted">{trades.length} total</span>
           )}
         </CardHeader>
       </div>
@@ -77,7 +77,7 @@ export function BotTradeList({
                       {tr.symbol}
                     </Badge>
                   </div>
-                  <p className="line-clamp-1 text-[11px] text-muted">
+                  <p className="line-clamp-1 text-[0.6875rem] text-muted">
                     {tr.strategy} · @ {formatPrice(tr.price)} · {formatRelativeTime(tr.t, now)}
                   </p>
                 </div>

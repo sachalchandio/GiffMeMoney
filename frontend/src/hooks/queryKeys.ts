@@ -42,6 +42,9 @@ export const queryKeys = {
   // auto-trader bot
   botModes: ['botModes'] as const,
 
+  // HFT simulation lab
+  hftCostPresets: ['hftCostPresets'] as const,
+
   // broker (go-live)
   brokerStatus: ['brokerStatus'] as const,
   brokerAccount: ['brokerAccount'] as const,

@@ -249,7 +249,7 @@ function CategorySection({
     <div>
       <div className="mb-2.5 flex items-center gap-2">
         <h2 className="text-sm font-semibold tracking-tight text-text">{category}</h2>
-        <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium tnum text-muted">
+        <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[0.6875rem] font-medium tnum text-muted">
           {items.length}
         </span>
       </div>
@@ -332,7 +332,7 @@ function StrategyDetail({
             </code>
           )}
           {meta.references.length > 0 && (
-            <p className="pt-1 text-[11px] text-muted">
+            <p className="pt-1 text-[0.6875rem] text-muted">
               <span className="font-medium">Sources:</span> {meta.references.join(' · ')}
             </p>
           )}
@@ -369,7 +369,7 @@ function StrategyDetail({
             bullish).
           </p>
           {rankingsQuery.isLoading ? (
-            <Skeleton className="h-[300px] w-full" />
+            <Skeleton className="h-[18.75rem] w-full" />
           ) : rankingsQuery.isError ? (
             <ChartEmpty height={300} label="Couldn't load rankings" />
           ) : (
@@ -386,7 +386,7 @@ function StrategyDetail({
             Growth of $1 — this strategy&apos;s rules vs simply buying &amp; holding the asset.
           </p>
           {!symbol || backtestQuery.isLoading ? (
-            <Skeleton className="h-[300px] w-full" />
+            <Skeleton className="h-[18.75rem] w-full" />
           ) : backtestQuery.isError ? (
             <ChartEmpty height={300} label="Couldn't load backtest" />
           ) : backtestQuery.data ? (
@@ -545,7 +545,7 @@ function BacktestSummary({ result }: { result: BacktestResultDTO }): JSX.Element
     <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
       {items.map((it) => (
         <div key={it.label} className="rounded-xl bg-surface-2 px-2.5 py-2 text-center">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-muted">
+          <div className="text-[0.625rem] font-medium uppercase tracking-wide text-muted">
             {it.label}
           </div>
           <div

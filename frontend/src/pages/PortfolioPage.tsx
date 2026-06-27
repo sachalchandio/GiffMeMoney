@@ -323,7 +323,7 @@ export default function PortfolioPage(): JSX.Element {
               )}
             </CardHeader>
             {optimize.isPending ? (
-              <Skeleton className="h-[300px] w-full" />
+              <Skeleton className="h-[18.75rem] w-full" />
             ) : result ? (
               <EfficientFrontierChart result={result} />
             ) : (
@@ -340,7 +340,7 @@ export default function PortfolioPage(): JSX.Element {
             <Card className="flex flex-col gap-4">
               <CardHeader>
                 <CardTitle>Optimal weights</CardTitle>
-                <span className="text-[11px] text-muted">
+                <span className="text-[0.6875rem] text-muted">
                   risk-free {formatFractionPct(result.riskFreeRate, { digits: 1 })}
                 </span>
               </CardHeader>

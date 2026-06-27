@@ -154,7 +154,7 @@ export default function InvestPage(): JSX.Element {
               </Badge>
             </CardHeader>
             {history.isPending ? (
-              <Skeleton className="h-[300px] w-full" />
+              <Skeleton className="h-[18.75rem] w-full" />
             ) : liveHistory ? (
               <PnlChart history={liveHistory} live showPositions={positions.length > 0 && positions.length <= 8} />
             ) : (
@@ -169,7 +169,7 @@ export default function InvestPage(): JSX.Element {
                 <CardTitle icon={<PieChart className="h-4 w-4" />}>Allocation</CardTitle>
               </CardHeader>
               {portfolio.isPending ? (
-                <Skeleton className="h-[260px] w-full" />
+                <Skeleton className="h-[16.25rem] w-full" />
               ) : (
                 <AllocationDonut positions={positions} />
               )}
@@ -179,7 +179,7 @@ export default function InvestPage(): JSX.Element {
               <CardHeader>
                 <CardTitle>Holdings</CardTitle>
                 {positions.length > 0 && (
-                  <span className="text-[11px] text-muted">{positions.length}</span>
+                  <span className="text-[0.6875rem] text-muted">{positions.length}</span>
                 )}
               </CardHeader>
               {portfolio.isPending ? (
@@ -193,7 +193,7 @@ export default function InvestPage(): JSX.Element {
                   No holdings yet. Build an allocation to get started.
                 </div>
               ) : (
-                <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto pr-0.5">
+                <div className="flex max-h-[26.25rem] flex-col gap-2 overflow-y-auto pr-0.5">
                   {positions.map((p) => (
                     <PositionCard key={p.symbol} position={p} />
                   ))}

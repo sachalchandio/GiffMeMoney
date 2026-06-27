@@ -69,8 +69,26 @@
     border-color: var(--border);
   }
 
+  /*
+   * Root font scale drives the Easy/Expert lenses. Because every dimension in
+   * the app is expressed in `rem`, changing the root size rescales the WHOLE UI
+   * at once: Easy mode renders ~6% larger and calmer (friendlier for someone new),
+   * Expert mode uses the standard density. Default is Easy (no attribute set yet),
+   * so there is no first-paint size flash.
+   */
   html {
     -webkit-text-size-adjust: 100%;
+    font-size: 106.25%; /* easy default ≈ 17px */
+  }
+  html[data-ui-mode='expert'] {
+    font-size: 100%; /* expert ≈ 16px, denser */
+  }
+  @media (max-width: 30rem) {
+    /* Keep mobile compact regardless of mode so layouts never overflow. */
+    html,
+    html[data-ui-mode='expert'] {
+      font-size: 100%;
+    }
   }
 
   body {
@@ -90,8 +108,8 @@
 
   /* Themed scrollbars (subtle) */
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 0.625rem;
+    height: 0.625rem;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
@@ -99,7 +117,7 @@
   ::-webkit-scrollbar-thumb {
     background: var(--border);
     border-radius: 9999px;
-    border: 2px solid transparent;
+    border: 0.125rem solid transparent;
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
@@ -108,8 +126,20 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
+    outline: 0.125rem solid var(--primary);
+    outline-offset: 0.125rem;
+  }
+
+  /* Respect reduced-motion: drop transitions/animations for sensitive users. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -123,8 +153,8 @@
   /* Glassy sticky top-bar surface. */
   .glass {
     background-color: color-mix(in srgb, var(--surface) 78%, transparent);
-    backdrop-filter: saturate(180%) blur(12px);
-    -webkit-backdrop-filter: saturate(180%) blur(12px);
+    backdrop-filter: saturate(180%) blur(0.75rem);
+    -webkit-backdrop-filter: saturate(180%) blur(0.75rem);
   }
 
   .no-scrollbar {

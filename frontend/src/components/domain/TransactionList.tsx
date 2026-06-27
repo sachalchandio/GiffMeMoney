@@ -38,7 +38,7 @@ export function TransactionList({ transactions, loading = false, limit, classNam
         <CardHeader>
           <CardTitle icon={<Receipt className="h-4 w-4" />}>Activity</CardTitle>
           {!loading && transactions.length > 0 && (
-            <span className="text-[11px] text-muted">{transactions.length} total</span>
+            <span className="text-[0.6875rem] text-muted">{transactions.length} total</span>
           )}
         </CardHeader>
       </div>
@@ -83,7 +83,7 @@ export function TransactionList({ transactions, loading = false, limit, classNam
                       </Badge>
                     )}
                   </div>
-                  <p className="line-clamp-1 text-[11px] text-muted">
+                  <p className="line-clamp-1 text-[0.6875rem] text-muted">
                     {txn.note || txn.ref} · {formatRelativeTime(txn.createdAt)}
                   </p>
                 </div>

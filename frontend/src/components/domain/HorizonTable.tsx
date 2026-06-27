@@ -64,7 +64,7 @@ export function HorizonTable({ expectedReturns, className }: HorizonTableProps):
     <div className={cn('overflow-x-auto', className)}>
       <table className="w-full min-w-[34rem] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border text-left text-[11px] font-medium uppercase tracking-wide text-muted">
+          <tr className="border-b border-border text-left text-[0.6875rem] font-medium uppercase tracking-wide text-muted">
             <th className="py-2 pr-3 font-medium">Horizon</th>
             <th className="py-2 px-3 text-right font-medium">Bear</th>
             <th className="py-2 px-3 text-right font-medium">Base</th>

@@ -69,7 +69,7 @@ export function WithdrawModal({ open, onClose, wallet, onSuccess }: WithdrawModa
     <ModalShell title="Withdraw cash" onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div className="rounded-xl border border-border bg-surface-2/50 px-3 py-2.5">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted">Available cash</p>
+          <p className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted">Available cash</p>
           <p className="mt-0.5 text-xl font-semibold tnum text-text">{formatCurrency(cash, { currency })}</p>
         </div>
 
