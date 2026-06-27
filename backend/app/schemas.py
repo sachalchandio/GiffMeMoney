@@ -1774,6 +1774,108 @@ class HftSweepResult(CamelModel):
     disclaimer: str = HFT_DISCLAIMER
 
 
+# ---------------------------------------------------------------------------
+# Real-Time mode DTOs (live-feeling, multi-venue PAPER simulation)
+# ---------------------------------------------------------------------------
+#
+# SAFETY / HONESTY: this is an ACCELERATED SIMULATION on synthetic data. No real
+# money, no bank, no live broker — $0 real. Every trade is charged a realistic
+# cost so churn bleeds, drift/vol are plausible so returns stay realistic (no
+# $20→$4k), and the self-updating predictor reports its own (usually low)
+# confidence rather than pretending to see the future.
+
+#: Mandatory disclaimer attached to every Real-Time-mode payload.
+LIVESIM_DISCLAIMER: str = (
+    "Accelerated SIMULATION on synthetic data — not financial advice and not real "
+    "trading. No real money moves: no bank, no live broker, no withdrawals ($0 "
+    "real). Trades are charged realistic costs and returns are kept realistic, so "
+    "this will not turn $20 into thousands — nothing legitimate does. The "
+    "prediction model updates itself but, lacking a real edge, stays near a coin "
+    "flip and reports its own confidence."
+)
+
+
+class LiveSimStartRequest(CamelModel):
+    """Configuration to start a Real-Time-mode session.
+
+    Fields mirror :func:`app.livesim.engine.create_session`. All optional with
+    safe defaults so a bare ``{}`` starts a sensible $20 / 20-venue session.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {"amount": 20, "signal": "momentum", "costPreset": "retail-crypto", "maxVenues": 20}
+            ]
+        }
+    )
+
+    amount: float = 20.0
+    signal: Literal["momentum", "meanrev"] = "momentum"
+    cost_preset: str = "retail-crypto"
+    dollars_per_venue: float = 1.0
+    max_venues: int = 20
+    rebalance_every: int = 3
+    stop_loss_pct: float = 6.0
+    max_drawdown_pct: float = 20.0
+    steps_per_tick: int = 4
+
+
+class LiveSimTickRequest(CamelModel):
+    """Advance a session by a number of steps."""
+
+    session_id: str
+    steps: Optional[int] = None
+
+
+class LiveSimVenue(CamelModel):
+    """One venue's live snapshot."""
+
+    symbol: str
+    label: str
+    price: float
+    pred_up_prob: float
+    confidence: float
+    score: float
+    weight_pct: float
+    position_value: float
+    pnl_pct: float
+    held: bool
+
+
+class LiveSimDayPoint(CamelModel):
+    """One simulated day's profit/loss."""
+
+    day: int
+    pnl_pct: float
+    equity: float
+
+
+class LiveSimState(CamelModel):
+    """The full live snapshot of a Real-Time-mode session."""
+
+    session_id: str
+    step: int
+    day: int
+    finished: bool
+    equity: float
+    cash: float
+    start_equity: float
+    total_pnl_pct: float
+    day_pnl_pct: float
+    max_drawdown_pct: float
+    venues_active: int
+    venues_target: int
+    venues_max: int
+    equity_curve: list[float] = Field(default_factory=list)
+    daily_pnl: list[LiveSimDayPoint] = Field(default_factory=list)
+    venues: list[LiveSimVenue] = Field(default_factory=list)
+    recent_trades: list[BotTrade] = Field(default_factory=list)
+    cost_model: Optional[HftCostModel] = None
+    synthetic_data: bool = True
+    disclaimer: str = LIVESIM_DISCLAIMER
+
+
 __all__ = [
     # type aliases
     "AssetClass",
@@ -1886,4 +1988,11 @@ __all__ = [
     "HftSweepPoint",
     "HftSweepRequest",
     "HftSweepResult",
+    # Real-Time mode (live-sim)
+    "LIVESIM_DISCLAIMER",
+    "LiveSimStartRequest",
+    "LiveSimTickRequest",
+    "LiveSimVenue",
+    "LiveSimDayPoint",
+    "LiveSimState",
 ]

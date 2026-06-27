@@ -27,6 +27,7 @@ const InvestPage = lazy(() => import('@/pages/InvestPage'));
 const ScreenerPage = lazy(() => import('@/pages/ScreenerPage'));
 const AutoTraderPage = lazy(() => import('@/pages/AutoTraderPage'));
 const SpeedLabPage = lazy(() => import('@/pages/SpeedLabPage'));
+const RealTimePage = lazy(() => import('@/pages/RealTimePage'));
 
 /** Centered spinner shown while a lazily-imported page chunk loads. */
 function RouteFallback(): JSX.Element {
@@ -73,6 +74,7 @@ export default function App(): JSX.Element {
         <Route path="invest" element={lazyPage(InvestPage)} />
         <Route path="auto-trader" element={lazyPage(AutoTraderPage)} />
         <Route path="speed-lab" element={lazyPage(SpeedLabPage)} />
+        <Route path="real-time" element={lazyPage(RealTimePage)} />
         <Route path="screener" element={lazyPage(ScreenerPage)} />
       </Route>
 
