@@ -16,7 +16,7 @@
  * plainly) not microsecond trading: a web app is ~a million times too slow.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   CartesianGrid,
@@ -86,7 +86,6 @@ export default function SpeedLabPage(): JSX.Element {
 
   const sweep = useHftSweep();
   const sim = useHftSim();
-  const ranOnce = useRef(false);
 
   const runExperiment = (): void => {
     const base = { symbol, signal, costPreset, amount: 20, days: 30 };
@@ -95,13 +94,15 @@ export default function SpeedLabPage(): JSX.Element {
     sim.mutate({ ...base, rebalanceInterval: 1 });
   };
 
-  // Auto-run once on first mount so the page is never empty.
+  // Auto-run so the page is never empty. Data-driven (not a fire-once ref) so it
+  // reliably lands even under React StrictMode's mount/remount in dev, and never
+  // loops (it stops once there's a result, a request in flight, or an error).
   useEffect(() => {
-    if (ranOnce.current) return;
-    ranOnce.current = true;
-    runExperiment();
+    if (!sweep.data && !sweep.isPending && !sweep.isError) {
+      runExperiment();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sweep.data, sweep.isPending, sweep.isError]);
 
   const data = sweep.data;
   const loading = sweep.isPending;
