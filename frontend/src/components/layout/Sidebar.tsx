@@ -15,6 +15,7 @@ import {
   Bot,
   Table2,
   Zap,
+  Radio,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -36,6 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/portfolio', label: 'Portfolio', icon: PieChart },
   { to: '/invest', label: 'Invest', icon: Wallet },
   { to: '/auto-trader', label: 'Auto-Trader', icon: Bot },
+  { to: '/real-time', label: 'Real-Time', icon: Radio },
   { to: '/speed-lab', label: 'Speed Lab', icon: Zap },
   { to: '/screener', label: 'Screener', icon: Table2 },
 ];
