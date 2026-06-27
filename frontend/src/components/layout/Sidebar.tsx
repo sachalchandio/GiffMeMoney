@@ -16,6 +16,7 @@ import {
   Table2,
   Zap,
   Radio,
+  Compass,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -31,6 +32,7 @@ export interface NavItem {
 
 /** The frozen navigation set (FRONTEND.md). */
 export const NAV_ITEMS: NavItem[] = [
+  { to: '/guide', label: 'Start here', icon: Compass },
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/recommendations', label: 'Recommendations', icon: ListChecks },
   { to: '/strategies', label: 'Strategy Lab', icon: FlaskConical },

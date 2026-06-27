@@ -312,6 +312,14 @@ export default function DashboardPage(): JSX.Element {
             Your top idea right now, in plain language — picked by our models from{' '}
             {summary.data ? formatNumber(totalBreadth, 0) : '—'} markets we track.
           </p>
+          <Link
+            to="/guide"
+            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/30 bg-primary/[0.06] px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/12"
+          >
+            <Sparkles className="h-3.5 w-3.5" aria-hidden />
+            New here? Take the 2-minute tour
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Link>
         </EasyOnly>
         <ExpertOnly>
           <p className="text-xs text-muted">
